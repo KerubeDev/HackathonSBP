@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, text
 from .agent import run_agent, engine
 from .config import settings
 from .contracts import API_VERSION, ErrorBody, LoadCancellation, RankingQuery, RunEnvelope, RunRequest, UploadConfirmation
-from .rankings import calculate_from_files, compare_rankings
+from .rankings import calculate_from_files, calculate_many_from_files, calculate_rankings, compare_rankings, read_csv, validate_at03
 writer_engine = create_engine(settings.database_url, pool_pre_ping=True)
 
 logging.basicConfig(level=settings.log_level)
@@ -29,8 +29,11 @@ DATA_DIR = __import__("pathlib").Path(__file__).resolve().parents[2] / "docs" / 
 def now() -> str: return datetime.now(timezone.utc).isoformat()
 
 def official_rankings() -> dict:
-    return calculate_from_files(
-        DATA_DIR / "AT03_sintetico_202609.csv",
+    at03_files = sorted(DATA_DIR.glob("AT03_*.csv"))
+    if not at03_files:
+        raise HTTPException(503, detail={"code": "NO_AT03_DATA", "message": "No AT03 data files are available"})
+    return calculate_many_from_files(
+        at03_files,
         DATA_DIR / "Catalogo_CINU_SB109_reto.csv",
         DATA_DIR / "Bancos_ficticios.csv",
         DATA_DIR / "Tabla_SB21_simplificada.csv",
@@ -114,7 +117,7 @@ def rankings(ranking: str | None = None, bank: str | None = None, period: str | 
     bounded_limit = min(max(limit, 1), 1000)
     return {"api_version": API_VERSION, "source": "AT03_sintetico_202609.csv",
             "rule_version": "sbp-2026-v2", "fictitious_data": True,
-            "quality": result["quality"], "rankings": rows[max(offset, 0):max(offset, 0) + bounded_limit],
+             "quality": result["quality"], "rankings": rows[max(offset, 0):max(offset, 0) + bounded_limit],
             "total": len(rows), "limit": bounded_limit, "offset": max(offset, 0)}
 
 @app.get("/api/charts/rankings")
@@ -142,9 +145,10 @@ def chart_rankings(ranking: str = "HIPOTECARIO"):
 @app.get("/api/quality/{period}")
 def quality(period: str):
     result = official_rankings()
-    if result["period"] != period:
+    quality_result = next((item for item in result["quality"] if item["period"] == period), None)
+    if quality_result is None:
         raise HTTPException(404, detail={"code": "PERIOD_NOT_FOUND", "message": "Period not found"})
-    return {"api_version": API_VERSION, "quality": result["quality"], "source": "AT03_sintetico_202609.csv",
+    return {"api_version": API_VERSION, "quality": quality_result, "source": f"AT03_sintetico_{period[:6]}.csv",
             "rule_version": "sbp-2026-v2"}
 
 @app.get("/api/rankings/subactivities")
@@ -231,8 +235,55 @@ async def preview_upload(file: UploadFile = File(...), x_api_key: str | None = H
     except (UnicodeDecodeError, csv.Error) as exc:
         raise HTTPException(422, detail={"code": "INVALID_AT03", "message": str(exc)})
     digest = hashlib.sha256(payload).hexdigest()
-    return {"api_version": API_VERSION, "filename": file.filename, "sha256": digest,
-            "rows": len(rows), "errors": errors, "status": "previewed" if not errors else "failed"}
+    response = {"api_version": API_VERSION, "filename": file.filename, "sha256": digest,
+                "rows": len(rows), "errors": errors,
+                "status": "previewed" if not errors else "failed"}
+    if not errors:
+        response["calculation"] = calculate_rankings(
+            rows,
+            read_csv(DATA_DIR / "Catalogo_CINU_SB109_reto.csv"),
+            read_csv(DATA_DIR / "Bancos_ficticios.csv"),
+            read_csv(DATA_DIR / "Tabla_SB21_simplificada.csv"),
+        )
+    return response
+
+
+@app.post("/api/rankings/upload")
+async def calculate_uploaded_ranking(file: UploadFile = File(...),
+                                     x_api_key: str | None = Header(default=None),
+                                     x_profile: str | None = Header(default=None)):
+    """Calculate a user-supplied AT03 cut without editing or trusting its contents.
+
+    The upload is kept in memory, validated as CSV, and processed with the same
+    deterministic catalog-driven engine as the bundled cuts.  It is deliberately
+    separate from publish: the caller can inspect quality evidence first.
+    """
+    authorize(x_api_key)
+    if x_profile != "administrador":
+        raise HTTPException(403, detail={"code": "FORBIDDEN", "message": "Administrator capability required"})
+    payload = await file.read()
+    try:
+        rows = list(csv.DictReader(io.StringIO(payload.decode("utf-8-sig"))))
+        errors = validate_at03(rows)
+    except (UnicodeDecodeError, csv.Error) as exc:
+        raise HTTPException(422, detail={"code": "INVALID_AT03", "message": str(exc)})
+    if errors:
+        raise HTTPException(422, detail={"code": "INVALID_AT03", "message": "Invalid AT03 file", "errors": errors})
+    result = calculate_rankings(
+        rows,
+        read_csv(DATA_DIR / "Catalogo_CINU_SB109_reto.csv"),
+        read_csv(DATA_DIR / "Bancos_ficticios.csv"),
+        read_csv(DATA_DIR / "Tabla_SB21_simplificada.csv"),
+    )
+    return {
+        "api_version": API_VERSION,
+        "filename": file.filename,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "source": "uploaded",
+        "fictitious_data": True,
+        **result,
+    }
+
 
 @app.post("/api/rankings/publish")
 def publish_fixture(period: str = Body(..., embed=True), x_api_key: str | None = Header(default=None),
@@ -307,13 +358,16 @@ def load_history(x_api_key: str | None = Header(default=None), x_profile: str | 
 
 @app.get("/api/comparisons")
 def comparisons():
-    current = official_rankings()
+    at03_files = sorted(DATA_DIR.glob("AT03_*.csv"))
+    if len(at03_files) < 2:
+        raise HTTPException(409, detail={"code": "COMPARISON_REQUIRES_TWO_PERIODS",
+                                         "message": "At least two AT03 periods are required"})
     previous = calculate_from_files(
-        DATA_DIR / "AT03_sintetico_202608.csv",
-        DATA_DIR / "Catalogo_CINU_SB109_reto.csv",
-        DATA_DIR / "Bancos_ficticios.csv",
-        DATA_DIR / "Tabla_SB21_simplificada.csv",
-    )
+        at03_files[-2], DATA_DIR / "Catalogo_CINU_SB109_reto.csv",
+        DATA_DIR / "Bancos_ficticios.csv", DATA_DIR / "Tabla_SB21_simplificada.csv")
+    current = calculate_from_files(
+        at03_files[-1], DATA_DIR / "Catalogo_CINU_SB109_reto.csv",
+        DATA_DIR / "Bancos_ficticios.csv", DATA_DIR / "Tabla_SB21_simplificada.csv")
     return {"api_version": API_VERSION, "movements": compare_rankings(previous, current),
             "previous_period": previous["period"], "current_period": current["period"]}
 

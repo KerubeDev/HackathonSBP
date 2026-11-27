@@ -141,6 +141,28 @@ def calculate_from_files(at03: str | Path, activity_catalog: str | Path, banks: 
                               read_csv(facilities) if facilities else ())
 
 
+def calculate_many_from_files(at03_files: Iterable[str | Path], activity_catalog: str | Path,
+                              banks: str | Path, facilities: str | Path | None = None) -> dict:
+    """Process every supplied cut independently, then combine the evidence.
+
+    A loan repeated in different files is valid: deduplication happens inside
+    calculate_rankings, which is the required per-period cascade.
+    """
+    results = [
+        calculate_from_files(path, activity_catalog, banks, facilities)
+        for path in at03_files
+    ]
+    if not results:
+        return {"periods": [], "rankings": [], "subactivities": [], "quality": []}
+    return {
+        "periods": [result["period"] for result in results],
+        "period": results[-1]["period"],
+        "rankings": [row for result in results for row in result["rankings"]],
+        "subactivities": [row for result in results for row in result["subactivities"]],
+        "quality": [result["quality"] for result in results],
+    }
+
+
 def compare_rankings(previous: dict, current: dict, position_threshold: int = 2) -> list[dict]:
     """Compare consecutive deterministic results without involving an LLM."""
     before = {(r["Ranking"], r["Codigo_Banco"]): r for r in previous["rankings"]}
