@@ -7,14 +7,24 @@ from sqlalchemy import create_engine, text
 from .agent import run_agent, engine
 from .config import settings
 from .contracts import API_VERSION, ErrorBody, RunEnvelope, RunRequest
+from .rankings import calculate_from_files
 writer_engine = create_engine(settings.database_url, pool_pre_ping=True)
 
 logging.basicConfig(level=settings.log_level)
 log = logging.getLogger("rea-agent")
 app = FastAPI(title="Generic REA Agent API", version="1.0.0")
 executor = ThreadPoolExecutor(max_workers=4)
+DATA_DIR = __import__("pathlib").Path(__file__).resolve().parents[2] / "docs" / "track" / "datos"
 
 def now() -> str: return datetime.now(timezone.utc).isoformat()
+
+def official_rankings() -> dict:
+    return calculate_from_files(
+        DATA_DIR / "AT03_sintetico_202609.csv",
+        DATA_DIR / "Catalogo_CINU_SB109_reto.csv",
+        DATA_DIR / "Bancos_ficticios.csv",
+        DATA_DIR / "Tabla_SB21_simplificada.csv",
+    )
 def authorize(key: str | None):
     if settings.api_key and key != settings.api_key:
         raise HTTPException(401, detail={"code": "AUTHENTICATION_ERROR", "message": "Invalid API key"})
@@ -56,6 +66,39 @@ def envelope(run_id: str, row: dict) -> dict:
 
 @app.get("/healthz")
 def health(): return {"status": "ok"}
+
+@app.get("/api/profile")
+def profile():
+    return {"api_version": API_VERSION, "profiles": [
+        {"id": "publico", "label": "Público", "capabilities": ["rankings", "filters", "charts", "downloads"]},
+        {"id": "analista", "label": "Analista", "capabilities": ["rankings", "filters", "charts", "downloads", "comparisons", "explanations"]},
+        {"id": "administrador", "label": "Administrador", "capabilities": ["rankings", "quality", "operations"]},
+    ]}
+
+@app.get("/api/rankings")
+def rankings(ranking: str | None = None, bank: str | None = None, period: str | None = None,
+             limit: int = 100, offset: int = 0):
+    result = official_rankings()
+    rows = result["rankings"]
+    if ranking:
+        rows = [row for row in rows if row["Ranking"] == ranking]
+    if bank:
+        rows = [row for row in rows if row["Codigo_Banco"] == bank]
+    if period:
+        rows = [row for row in rows if row["Fecha"] == period]
+    bounded_limit = min(max(limit, 1), 1000)
+    return {"api_version": API_VERSION, "source": "AT03_sintetico_202609.csv",
+            "rule_version": "sbp-2026-v2", "fictitious_data": True,
+            "quality": result["quality"], "rankings": rows[max(offset, 0):max(offset, 0) + bounded_limit],
+            "total": len(rows), "limit": bounded_limit, "offset": max(offset, 0)}
+
+@app.get("/api/quality/{period}")
+def quality(period: str):
+    result = official_rankings()
+    if result["period"] != period:
+        raise HTTPException(404, detail={"code": "PERIOD_NOT_FOUND", "message": "Period not found"})
+    return {"api_version": API_VERSION, "quality": result["quality"], "source": "AT03_sintetico_202609.csv",
+            "rule_version": "sbp-2026-v2"}
 
 @app.post("/api/agent/run", status_code=202)
 def start(body: RunRequest, request: Request, x_api_key: str | None = Header(default=None),
