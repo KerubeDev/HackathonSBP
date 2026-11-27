@@ -77,6 +77,9 @@ def envelope(run_id: str, row: dict) -> dict:
 @app.get("/healthz")
 def health(): return {"status": "ok"}
 
+@app.get("/health")
+def health_compatibility(): return {"status": "ok"}
+
 @app.get("/api/profile")
 def profile():
     return {"api_version": API_VERSION, "profiles": [
