@@ -58,7 +58,7 @@ fixturesPath: tests/skill-output-migration-routing-skill-dev.test.mjs
 diataxis: how-to
 tags: [routing, pr, publication, quality-gate]
 compatibility: [review-pr, ship-subissue]
-approvalRequired: false
+approvalRequired: true
 approvalFor: []
 clauses:
   - id: PUBLISH-OPEN-PR-1

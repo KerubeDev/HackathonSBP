@@ -2,7 +2,7 @@
   "skill": "delivery/code-review",
   "version": 1,
   "generatedFrom": "frontmatter",
-  "frontmatterHash": "830d4e53e386fec726ef0d72be162c04179cfb983c4272d8c396b1aa3c34e0d3",
+  "frontmatterHash": "4103d9fa397557a5d7a422f4c1ae1ca7221785b8256ebf5dbef3cdd17ca4d58e",
   "role": "workflow",
   "router": {
     "positive": [],
@@ -28,7 +28,7 @@
     "sideEffects": [
       "post-pr-comment"
     ],
-    "approvalRequired": false,
+    "approvalRequired": true,
     "approvalFor": [],
     "risk": "medium",
     "trustTier": 3

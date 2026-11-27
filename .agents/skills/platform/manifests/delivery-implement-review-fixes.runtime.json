@@ -2,7 +2,7 @@
   "skill": "delivery/implement-review-fixes",
   "version": 1,
   "generatedFrom": "frontmatter",
-  "frontmatterHash": "468da9e3e5294a076c9228fa6ba851ccaf9e284fcc25fee06baa338da167792b",
+  "frontmatterHash": "64091e4cd7923433146a2ea21b4dc8a7e943c225a21e8ff0849248cd6c012bbf",
   "role": "workflow",
   "router": {
     "positive": [],
@@ -33,7 +33,7 @@
       "write-files",
       "post-pr-comment"
     ],
-    "approvalRequired": false,
+    "approvalRequired": true,
     "approvalFor": [],
     "risk": "medium",
     "trustTier": 3

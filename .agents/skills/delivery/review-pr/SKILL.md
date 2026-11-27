@@ -78,7 +78,7 @@ fixturesPath: .agents/skills/platform/fixtures/regression/review-pr.json
 diataxis: how-to
 tags: [delivery, review, standards, spec, quality]
 compatibility: [plan-review-fixes, ship-subissue, resolving-merge-conflicts]
-approvalRequired: false
+approvalRequired: true
 approvalFor: []
 sideEffects:
   - post-pr-comment

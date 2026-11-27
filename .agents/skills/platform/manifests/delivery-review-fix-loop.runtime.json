@@ -2,7 +2,7 @@
   "skill": "delivery/review-fix-loop",
   "version": 1,
   "generatedFrom": "frontmatter",
-  "frontmatterHash": "ebc23e547d7a6d272ee06173bdd4a0d8b8fefa4a49565f44db41f61497897f4c",
+  "frontmatterHash": "db22660bfc98b0ed007ebf719053aa8f14d802f09ef70dd289be5421d40e284d",
   "role": "workflow",
   "router": {
     "positive": [],
@@ -33,7 +33,7 @@
       "commit-git",
       "push-branch"
     ],
-    "approvalRequired": false,
+    "approvalRequired": true,
     "approvalFor": [],
     "risk": "medium",
     "trustTier": 3
