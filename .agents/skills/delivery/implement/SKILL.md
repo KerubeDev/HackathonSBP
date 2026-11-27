@@ -50,7 +50,7 @@ fixturesPath: .agents/skills/platform/fixtures/behavioral/implement.json
 diataxis: how-to
 tags: [tdd, delivery, implementation, testing]
 compatibility: [to-tickets, publish-open-pr, tdd, gate-ide, gate-pre-commit, gate-ci]
-approvalRequired: false
+approvalRequired: true
 approvalFor: []
 clauses:
   - id: IMPLEMENT-1
