@@ -77,6 +77,18 @@ def profile():
         {"id": "administrador", "label": "Administrador", "capabilities": ["rankings", "quality", "operations"]},
     ]}
 
+@app.get("/api/agents")
+def agents():
+    """Discover the read-only agent capabilities exposed by this service."""
+    return {"api_version": API_VERSION, "agents": [
+        {"id": "ask-to", "name": "Ask-to analysis", "endpoint": "/api/agent/run",
+         "method": "POST", "mode": "read-only", "description": "Grounded natural-language SQL analysis"},
+        {"id": "ranking-engine", "name": "Official ranking engine", "endpoint": "/api/rankings",
+         "method": "GET", "mode": "deterministic", "description": "Official SBP rankings; no LLM calculation"},
+        {"id": "movement-engine", "name": "Movement comparison", "endpoint": "/api/comparisons",
+         "method": "GET", "mode": "deterministic", "description": "Consecutive-period movements"},
+    ]}
+
 @app.get("/api/rankings")
 def rankings(ranking: str | None = None, bank: str | None = None, period: str | None = None,
              limit: int = 100, offset: int = 0):
@@ -93,6 +105,28 @@ def rankings(ranking: str | None = None, bank: str | None = None, period: str | 
             "rule_version": "sbp-2026-v2", "fictitious_data": True,
             "quality": result["quality"], "rankings": rows[max(offset, 0):max(offset, 0) + bounded_limit],
             "total": len(rows), "limit": bounded_limit, "offset": max(offset, 0)}
+
+@app.get("/api/charts/rankings")
+def chart_rankings(ranking: str = "HIPOTECARIO"):
+    """Return Chart.js-compatible labels/datasets for the selected official ranking."""
+    rows = [row for row in official_rankings()["rankings"] if row["Ranking"] == ranking]
+    return {
+        "type": "bar",
+        "data": {
+            "labels": [row["Codigo_Banco"] for row in rows],
+            "datasets": [{
+                "label": f"Saldo {ranking}",
+                "data": [float(row["Saldo_Actividad"]) for row in rows],
+                "backgroundColor": "#4f8f68",
+                "borderColor": "#13251f",
+                "borderWidth": 1,
+            }],
+        },
+        "options": {"responsive": True, "plugins": {"legend": {"display": True}},
+                    "scales": {"y": {"beginAtZero": True}}},
+        "metadata": {"source": "AT03_sintetico_202609.csv", "rule_version": "sbp-2026-v2",
+                     "fictitious_data": True, "ranking": ranking},
+    }
 
 @app.get("/api/quality/{period}")
 def quality(period: str):
