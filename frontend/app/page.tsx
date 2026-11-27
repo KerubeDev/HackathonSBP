@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import Chart from '../components/Chart';
 import { API, sbpApi } from '../lib/api';
 
@@ -12,6 +12,15 @@ type Row = {
 };
 
 export default function Home() {
+  const demoUsers: Record<string, { password: string; profile: string; label: string }> = {
+    publico: { password: 'publico', profile: 'publico', label: 'Público' },
+    analista: { password: 'analista', profile: 'analista', label: 'Analista' },
+    admin: { password: 'admin123', profile: 'administrador', label: 'Administrador' },
+  };
+  const [authenticated, setAuthenticated] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [profile, setProfile] = useState('publico');
   const [view, setView] = useState('rankings');
   const [ranking, setRanking] = useState('HIPOTECARIO');
@@ -23,6 +32,40 @@ export default function Home() {
   const [comparison, setComparison] = useState<any>(null);
   const [upload, setUpload] = useState<File | null>(null);
   const [uploadMessage, setUploadMessage] = useState('');
+
+  function login(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const user = demoUsers[username.trim().toLowerCase()];
+    if (!user || user.password !== password) {
+      setLoginError('Usuario o contraseña incorrectos');
+      return;
+    }
+    setProfile(user.profile);
+    setAuthenticated(true);
+    setLoginError('');
+    setPassword('');
+  }
+
+  if (!authenticated) {
+    return <main className="flex min-h-screen items-center justify-center bg-[var(--mint)] px-5">
+      <form onSubmit={login} className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
+        <span className="rounded-full bg-[var(--lime)] px-4 py-2 text-sm font-bold">SBP RANKING</span>
+        <h1 className="mt-6 text-3xl font-black">Iniciar sesión</h1>
+        <p className="mt-2 text-sm opacity-70">Acceso local de demostración</p>
+        <label className="mt-6 block text-sm font-bold">Usuario
+          <input value={username} onChange={(event) => setUsername(event.target.value)}
+            className="mt-2 w-full rounded-lg border-2 p-3" autoComplete="username" required />
+        </label>
+        <label className="mt-4 block text-sm font-bold">Contraseña
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)}
+            className="mt-2 w-full rounded-lg border-2 p-3" autoComplete="current-password" required />
+        </label>
+        <button type="submit" className="mt-6 w-full rounded-xl bg-[var(--ink)] px-4 py-3 font-bold text-white">Entrar</button>
+        {loginError && <p className="mt-4 text-red-700" role="alert">{loginError}</p>}
+        <p className="mt-6 text-xs opacity-60">Demo: publico/publico · analista/analista · admin/admin123</p>
+      </form>
+    </main>;
+  }
 
   const navigation = profile === 'publico'
     ? [{ id: 'rankings', label: 'Rankings' }, { id: 'exports', label: 'Descargas' }]
@@ -64,11 +107,11 @@ export default function Home() {
     <header className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
       <div><span className="rounded-full bg-[var(--lime)] px-4 py-2 text-sm font-bold">SBP RANKING</span>
         <h1 className="mt-5 text-4xl font-black md:text-6xl">Crédito por actividad</h1></div>
-      <label className="text-sm font-bold">Perfil
-        <select value={profile} onChange={(e) => setProfile(e.target.value)} className="ml-2 rounded-lg border-2 p-2">
-          <option value="publico">Público</option><option value="analista">Analista</option><option value="administrador">Administrador</option>
-        </select>
-      </label>
+      <div className="flex items-center gap-3 text-sm font-bold">
+        <span>Perfil: {profile === 'administrador' ? 'Administrador' : profile[0].toUpperCase() + profile.slice(1)}</span>
+        <button onClick={() => { setAuthenticated(false); setView('rankings'); }}
+          className="rounded-lg border-2 px-3 py-2">Salir</button>
+      </div>
     </header>
     <nav aria-label="Navegación principal" className="mx-auto mt-8 flex max-w-7xl flex-wrap gap-2">
       {navigation.map((item) => <button key={item.id} onClick={() => setView(item.id)}
