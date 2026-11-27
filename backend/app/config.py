@@ -6,5 +6,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://host.docker.internal:11434"
     local_model: str = "qwen2.5:7b"
     agent_max_rows: int = 100
+    api_key: str | None = None
+    log_level: str = 'INFO'
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 settings = Settings()

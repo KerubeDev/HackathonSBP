@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS agent_runs (run_id TEXT PRIMARY KEY, status TEXT NOT NULL, request TEXT NOT NULL, result JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
