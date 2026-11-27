@@ -2,7 +2,7 @@
   "skill": "delivery/implement",
   "version": 1,
   "generatedFrom": "frontmatter",
-  "frontmatterHash": "9676b6c8e292a13a9bce4449e1698292ed64eb45b372d6bcf0a279ed2a2a643e",
+  "frontmatterHash": "2fd425451ac487930ac8125bf207c91747fa90ef44042a4211d81b8779727419",
   "role": "workflow",
   "router": {
     "positive": [],
@@ -31,7 +31,7 @@
       "write-code",
       "commit-git"
     ],
-    "approvalRequired": false,
+    "approvalRequired": true,
     "approvalFor": [],
     "risk": "medium",
     "trustTier": 3
