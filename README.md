@@ -27,6 +27,15 @@ banks.
 Run the domain regression checks without external services:
 
 ```bash
+uv venv .venv
+uv pip install --python .venv/bin/python -r backend/requirements.txt
+.venv/bin/python -m pytest -q backend/tests
+cd frontend && npm ci && npm run build
+```
+
+The shorter domain-only check is:
+
+```bash
 python3 -m unittest backend.tests.test_rankings_engine -v
 ```
 
