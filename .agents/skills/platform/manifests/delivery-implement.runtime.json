@@ -1,0 +1,52 @@
+{
+  "skill": "delivery/implement",
+  "version": 1,
+  "generatedFrom": "frontmatter",
+  "frontmatterHash": "9676b6c8e292a13a9bce4449e1698292ed64eb45b372d6bcf0a279ed2a2a643e",
+  "role": "workflow",
+  "router": {
+    "positive": [],
+    "negative": [],
+    "requiredSignals": []
+  },
+  "execution": {
+    "defaultAgent": "general",
+    "isolation": "worktree",
+    "maxTurns": 6,
+    "modelTier": "reasoning",
+    "tools": {
+      "allow": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write",
+        "Bash"
+      ],
+      "deny": []
+    }
+  },
+  "guardrails": {
+    "sideEffects": [
+      "write-code",
+      "commit-git"
+    ],
+    "approvalRequired": false,
+    "approvalFor": [],
+    "risk": "medium",
+    "trustTier": 3
+  },
+  "verification": {
+    "commands": [
+      "node .agents/skills/platform/check-all.mjs"
+    ],
+    "artifactSchema": null
+  },
+  "observability": {
+    "traceEvents": [
+      "skill.route",
+      "skill.execute",
+      "skill.verify"
+    ]
+  }
+}

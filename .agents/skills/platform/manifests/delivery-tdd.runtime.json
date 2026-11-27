@@ -1,0 +1,52 @@
+{
+  "skill": "delivery/tdd",
+  "version": 1,
+  "generatedFrom": "frontmatter",
+  "frontmatterHash": "d45c59c60f2439b3fd06f5f311c013a287609783e11c14faf785c3499bdeada4",
+  "role": "workflow",
+  "router": {
+    "positive": [],
+    "negative": [],
+    "requiredSignals": []
+  },
+  "execution": {
+    "defaultAgent": "general",
+    "isolation": "worktree",
+    "maxTurns": 6,
+    "modelTier": "reasoning",
+    "tools": {
+      "allow": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Edit",
+        "Write",
+        "Bash"
+      ],
+      "deny": []
+    }
+  },
+  "guardrails": {
+    "sideEffects": [
+      "write-code",
+      "commit-git"
+    ],
+    "approvalRequired": false,
+    "approvalFor": [],
+    "risk": "medium",
+    "trustTier": 3
+  },
+  "verification": {
+    "commands": [
+      "node .agents/skills/platform/check-all.mjs"
+    ],
+    "artifactSchema": null
+  },
+  "observability": {
+    "traceEvents": [
+      "skill.route",
+      "skill.execute",
+      "skill.verify"
+    ]
+  }
+}
