@@ -139,3 +139,29 @@ def calculate_from_files(at03: str | Path, activity_catalog: str | Path, banks: 
                          facilities: str | Path | None = None) -> dict:
     return calculate_rankings(read_csv(at03), read_csv(activity_catalog), read_csv(banks),
                               read_csv(facilities) if facilities else ())
+
+
+def compare_rankings(previous: dict, current: dict, position_threshold: int = 2) -> list[dict]:
+    """Compare consecutive deterministic results without involving an LLM."""
+    before = {(r["Ranking"], r["Codigo_Banco"]): r for r in previous["rankings"]}
+    after = {(r["Ranking"], r["Codigo_Banco"]): r for r in current["rankings"]}
+    movements = []
+    for key, new in after.items():
+        old = before.get(key)
+        if not old:
+            continue
+        position_delta = int(old["Posicion"]) - int(new["Posicion"])
+        old_balance = _d(old["Saldo_Actividad"])
+        new_balance = _d(new["Saldo_Actividad"])
+        balance_delta = new_balance - old_balance
+        balance_pct = (balance_delta / old_balance * 100) if old_balance else Decimal("0")
+        significant = abs(position_delta) >= position_threshold or position_delta == 11
+        movements.append({
+            "Ranking": new["Ranking"], "Codigo_Banco": new["Codigo_Banco"], "Banco": new["Banco"],
+            "previous_period": previous["period"], "current_period": current["period"],
+            "Cambio_Posicion": position_delta, "Var_Saldo": str(_q(balance_delta, MONEY)),
+            "Var_Saldo_Pct": str(_q(balance_pct, PERCENT)), "significant": significant,
+            "reason": "position threshold" if abs(position_delta) >= position_threshold else
+                      ("leader change" if position_delta == 11 else None),
+        })
+    return movements

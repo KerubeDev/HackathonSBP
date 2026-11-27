@@ -1,8 +1,62 @@
 'use client';
-import {useState} from 'react';
+
+import { useEffect, useMemo, useState } from 'react';
 import Chart from '../components/Chart';
-const API=process.env.NEXT_PUBLIC_API_URL||'http://localhost:8000';
-export default function Home(){
- const [query,setQuery]=useState('Compare value by region'); const [run,setRun]=useState<any>(null); const [busy,setBusy]=useState(false);
- async function submit(e:any){e.preventDefault();setBusy(true);setRun(null);try{const started=await fetch(`${API}/api/agent/run`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,api_version:'v1'})}).then(r=>r.json());let result=started;for(let i=0;i<20&&result.status!=='completed'&&result.status!=='failed';i++){await new Promise(r=>setTimeout(r,250));result=await fetch(`${API}${started.poll_url||`/api/agent/status/${started.run_id}`}`).then(r=>r.json())}setRun(result)}finally{setBusy(false)}}
- return <main className="min-h-screen px-6 py-10 md:px-16"><header className="mx-auto flex max-w-6xl items-center justify-between"><span className="rounded-full bg-[var(--lime)] px-4 py-2 text-sm font-bold">REA / ASK-TO</span><span className="text-sm opacity-60">Generic agent template</span></header><section className="mx-auto grid max-w-6xl gap-10 py-16 lg:grid-cols-[.8fr_1.2fr]"><div><p className="mb-5 text-sm font-bold uppercase tracking-[.25em] opacity-50">Reason · Execute · Iterate</p><h1 className="text-5xl font-black leading-[.95] md:text-7xl">Ask your data<br/><span className="text-[#4f8f68]">better questions.</span></h1><p className="mt-7 max-w-md text-lg opacity-70">A business-agnostic workspace for translating natural language into safe SQL, repeatable analysis, and dashboard-ready output.</p><form onSubmit={submit} className="mt-10"><label htmlFor="query" className="mb-2 block text-sm font-bold">Your question</label><textarea id="query" value={query} onChange={e=>setQuery(e.target.value)} className="min-h-32 w-full rounded-2xl border-2 border-[var(--ink)] bg-white p-4 outline-none"/><button disabled={busy} className="mt-3 rounded-full bg-[var(--ink)] px-6 py-3 font-bold text-white disabled:opacity-50">{busy?'Analyzing…':'Run analysis →'}</button></form></div><div className="rounded-[2rem] bg-white p-5 shadow-xl md:p-8" aria-live="polite"><div className="mb-6 flex items-center justify-between"><h2 className="text-xl font-bold">Analysis canvas</h2><span className="rounded-full bg-[var(--lime)] px-3 py-1 text-xs font-bold">{run?.status||'READY'}</span></div>{run?.result?.summary&&<p className="mb-5 text-lg">{run.result.summary}</p>}{run?.error&&<p role="alert" className="mb-5 text-red-700">{run.error.message}</p>}{run?.result?.sql_query&&<details className="mb-5"><summary className="cursor-pointer font-bold">View generated SQL</summary><pre className="mt-2 overflow-auto rounded-xl bg-[var(--ink)] p-4 text-xs text-white">{run.result.sql_query}</pre></details>}{run?.result?.chart_config&&<Chart config={run.result.chart_config}/>} {run?.result?.data?.length?<div className="mt-6 overflow-auto"><table className="w-full text-left text-sm"><caption className="sr-only">Analysis results</caption><thead><tr>{Object.keys(run.result.data[0]).map(k=><th scope="col" key={k} className="border-b p-2">{k}</th>)}</tr></thead><tbody>{run.result.data.map((r:any,i:number)=><tr key={i}>{Object.values(r).map((v:any,j:number)=><td key={j} className="border-b p-2">{String(v)}</td>)}</tr>)}</tbody></table></div>:run&&<p className="opacity-60">No rows returned.</p>}</div></section></main>}
+
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const activities = ['HIPOTECARIO', 'CONSTRUCCION', 'INDUSTRIA', 'AGROPECUARIO', 'COMERCIO', 'CONSUMO'];
+
+type Row = {
+  Posicion: number; Codigo_Banco: string; Banco: string; Saldo_Actividad: string;
+  Total_Cartera_Local_Valida: string; Ponderacion_Pct: string;
+};
+
+export default function Home() {
+  const [profile, setProfile] = useState('publico');
+  const [ranking, setRanking] = useState('HIPOTECARIO');
+  const [rows, setRows] = useState<Row[]>([]);
+  const [quality, setQuality] = useState<any>(null);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('loading');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setStatus('loading');
+    fetch(`${API}/api/rankings?ranking=${ranking}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('No se pudo cargar el ranking')))
+      .then((body) => { setRows(body.rankings); setQuality(body.quality); setStatus('ready'); })
+      .catch((reason) => { setError(reason.message); setStatus('error'); });
+  }, [ranking]);
+
+  const visibleRows = useMemo(() => rows.filter((row) =>
+    !query || `${row.Banco} ${row.Codigo_Banco}`.toLowerCase().includes(query.toLowerCase())), [rows, query]);
+  const chart = { xAxis: { type: 'category', data: visibleRows.map((r) => r.Codigo_Banco) },
+    yAxis: { type: 'value' }, series: [{ type: 'bar', data: visibleRows.map((r) => Number(r.Saldo_Actividad)) }] };
+
+  return <main className="min-h-screen px-5 py-8 md:px-12">
+    <header className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
+      <div><span className="rounded-full bg-[var(--lime)] px-4 py-2 text-sm font-bold">SBP RANKING</span>
+        <h1 className="mt-5 text-4xl font-black md:text-6xl">Crédito por actividad</h1></div>
+      <label className="text-sm font-bold">Perfil
+        <select value={profile} onChange={(e) => setProfile(e.target.value)} className="ml-2 rounded-lg border-2 p-2">
+          <option value="publico">Público</option><option value="analista">Analista</option><option value="administrador">Administrador</option>
+        </select>
+      </label>
+    </header>
+    <section className="mx-auto mt-8 max-w-7xl rounded-3xl bg-white p-5 shadow-xl md:p-8">
+      <div className="flex flex-wrap gap-3">{activities.map((name) =>
+        <button key={name} onClick={() => setRanking(name)} className={`rounded-full px-4 py-2 text-sm font-bold ${ranking === name ? 'bg-[var(--ink)] text-white' : 'bg-[var(--mint)]'}`}>{name}</button>)}</div>
+      <div className="mt-6 grid gap-4 md:grid-cols-[1fr_auto]">
+        <input aria-label="Buscar banco" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar banco o código" className="rounded-xl border-2 p-3" />
+        <div className="rounded-xl bg-[var(--mint)] px-4 py-3 text-sm">Datos ficticios · Corte {quality?.period || '—'} · Regla sbp-2026-v2</div>
+      </div>
+      {status === 'loading' && <p className="py-10" aria-live="polite">Cargando ranking…</p>}
+      {status === 'error' && <p className="py-10 text-red-700" role="alert">{error}</p>}
+      {status === 'ready' && <><div className="mt-6"><Chart config={chart} /></div>
+        <div className="mt-6 overflow-x-auto"><table className="w-full text-left">
+          <caption className="sr-only">Ranking {ranking}</caption><thead><tr className="border-b-2"><th>Posición</th><th>Banco</th><th>Saldo</th><th>Cartera válida</th><th>Ponderación</th></tr></thead>
+          <tbody>{visibleRows.map((row) => <tr key={row.Codigo_Banco} className="border-b"><td className="py-3">{row.Posicion}</td><td>{row.Banco} ({row.Codigo_Banco})</td><td>{row.Saldo_Actividad}</td><td>{row.Total_Cartera_Local_Valida}</td><td>{row.Ponderacion_Pct}%</td></tr>)}</tbody>
+        </table></div><p className="mt-4 text-sm opacity-70">Calidad: {quality?.valid_universe} filas válidas · E1 {quality?.E1} · E2 {quality?.E2} · E3 {quality?.E3} · E4 {quality?.E4}</p></>}
+    </section>
+  </main>;
+}

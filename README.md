@@ -16,6 +16,27 @@
 
 `quirk Skills` is a repository-local workflow system for moving software work from intent to validated delivery.
 
+## Hackathon SBP local prototype
+
+The repository includes a deterministic ranking prototype over the synthetic AT03
+fixtures in `docs/track/datos/`. Official rankings never use the LLM path:
+`backend/app/rankings.py` applies the normative E1–E4 cascade, CINU/SB109 and
+SB21 classification, exact Decimal arithmetic, all six rankings, and all twelve
+banks.
+
+Run the domain regression checks without external services:
+
+```bash
+python3 -m unittest backend.tests.test_rankings_engine -v
+```
+
+The FastAPI service exposes `/api/profile`, `/api/rankings`,
+`/api/rankings/subactivities`, `/api/quality/{period}`, and `/api/comparisons`.
+The current prototype reads the supplied synthetic files; PostgreSQL migration
+`db/003_sbp_domain.sql` defines the provenance, quality, ranking, subactivity,
+and audit persistence seam for the next deployment step. No production
+credentials are required for the deterministic path.
+
 It follows the `quirk` method: clarify before building, preserve context, split work into claimable slices, review against separate Standards and Spec axes, repair with explicit plans, and ship only on clean evidence.
 
 If a PR branch is conflicted, resolve branch state first with `resolving-merge-conflicts`, then return to `review-pr` and `review-fix-loop` before shipping.

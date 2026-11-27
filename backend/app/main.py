@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 from .agent import run_agent, engine
 from .config import settings
 from .contracts import API_VERSION, ErrorBody, RunEnvelope, RunRequest
-from .rankings import calculate_from_files
+from .rankings import calculate_from_files, compare_rankings
 writer_engine = create_engine(settings.database_url, pool_pre_ping=True)
 
 logging.basicConfig(level=settings.log_level)
@@ -99,6 +99,27 @@ def quality(period: str):
         raise HTTPException(404, detail={"code": "PERIOD_NOT_FOUND", "message": "Period not found"})
     return {"api_version": API_VERSION, "quality": result["quality"], "source": "AT03_sintetico_202609.csv",
             "rule_version": "sbp-2026-v2"}
+
+@app.get("/api/rankings/subactivities")
+def subactivities(ranking: str | None = None, bank: str | None = None):
+    rows = official_rankings()["subactivities"]
+    if ranking:
+        rows = [row for row in rows if row["Ranking"] == ranking]
+    if bank:
+        rows = [row for row in rows if row["Codigo_Banco"] == bank]
+    return {"api_version": API_VERSION, "subactivities": rows}
+
+@app.get("/api/comparisons")
+def comparisons():
+    current = official_rankings()
+    previous = calculate_from_files(
+        DATA_DIR / "AT03_sintetico_202608.csv",
+        DATA_DIR / "Catalogo_CINU_SB109_reto.csv",
+        DATA_DIR / "Bancos_ficticios.csv",
+        DATA_DIR / "Tabla_SB21_simplificada.csv",
+    )
+    return {"api_version": API_VERSION, "movements": compare_rankings(previous, current),
+            "previous_period": previous["period"], "current_period": current["period"]}
 
 @app.post("/api/agent/run", status_code=202)
 def start(body: RunRequest, request: Request, x_api_key: str | None = Header(default=None),
