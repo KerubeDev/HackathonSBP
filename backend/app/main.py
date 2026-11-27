@@ -2,8 +2,9 @@ import csv, hashlib, io, json, logging, time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from uuid import uuid4
-from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi import Body, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 from sqlalchemy import create_engine, text
 from .agent import run_agent, engine
 from .config import settings
@@ -124,6 +125,54 @@ def export_rankings(ranking: str | None = None):
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=sbp-rankings.csv"})
 
+@app.get("/api/exports/rankings.json")
+def export_rankings_json(ranking: str | None = None):
+    rows = official_rankings()["rankings"]
+    if ranking:
+        rows = [row for row in rows if row["Ranking"] == ranking]
+    return {"source": "AT03_sintetico_202609.csv", "rule_version": "sbp-2026-v2", "rankings": rows}
+
+@app.get("/api/exports/rankings.xlsx")
+def export_rankings_xlsx(ranking: str | None = None):
+    from openpyxl import Workbook
+    rows = official_rankings()["rankings"]
+    if ranking:
+        rows = [row for row in rows if row["Ranking"] == ranking]
+    fields = ["Fecha", "Ranking", "Posicion", "Codigo_Banco", "Banco", "Saldo_Actividad",
+              "Total_Cartera_Local_Valida", "Ponderacion_Pct", "Operaciones_Validas"]
+    workbook, sheet = Workbook(), None
+    sheet = workbook.active
+    sheet.append(fields)
+    for row in rows:
+        sheet.append([row[field] for field in fields])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return Response(buffer.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": "attachment; filename=sbp-rankings.xlsx"})
+
+@app.get("/api/exports/rankings.pdf")
+def export_rankings_pdf(ranking: str | None = None):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen.canvas import Canvas
+    rows = official_rankings()["rankings"]
+    if ranking:
+        rows = [row for row in rows if row["Ranking"] == ranking]
+    buffer = io.BytesIO()
+    canvas = Canvas(buffer, pagesize=letter)
+    canvas.setTitle("SBP Rankings")
+    canvas.drawString(40, 760, "SBP synthetic credit rankings")
+    canvas.drawString(40, 744, "Source: AT03_sintetico_202609.csv | Rule: sbp-2026-v2")
+    y = 720
+    for row in rows:
+        canvas.drawString(40, y, f'{row["Ranking"]} #{row["Posicion"]} {row["Banco"]} {row["Saldo_Actividad"]}')
+        y -= 14
+        if y < 40:
+            canvas.showPage()
+            y = 760
+    canvas.save()
+    return Response(buffer.getvalue(), media_type="application/pdf",
+                    headers={"Content-Disposition": "attachment; filename=sbp-rankings.pdf"})
+
 @app.post("/api/rankings/preview")
 async def preview_upload(file: UploadFile = File(...), x_api_key: str | None = Header(default=None),
                          x_profile: str | None = Header(default=None)):
@@ -139,6 +188,48 @@ async def preview_upload(file: UploadFile = File(...), x_api_key: str | None = H
     digest = hashlib.sha256(payload).hexdigest()
     return {"api_version": API_VERSION, "filename": file.filename, "sha256": digest,
             "rows": len(rows), "errors": errors, "status": "previewed" if not errors else "failed"}
+
+@app.post("/api/rankings/publish")
+def publish_fixture(period: str = Body(..., embed=True), x_api_key: str | None = Header(default=None),
+                    x_profile: str | None = Header(default=None)):
+    """Publish a supplied fixture atomically through the local administrator seam."""
+    authorize(x_api_key)
+    if x_profile != "administrador":
+        raise HTTPException(403, detail={"code": "FORBIDDEN", "message": "Administrator capability required"})
+    source = DATA_DIR / f"AT03_sintetico_{period[:6]}.csv"
+    if not source.exists():
+        raise HTTPException(404, detail={"code": "PERIOD_NOT_FOUND", "message": "Fixture period not found"})
+    result = calculate_from_files(source, DATA_DIR / "Catalogo_CINU_SB109_reto.csv",
+                                  DATA_DIR / "Bancos_ficticios.csv", DATA_DIR / "Tabla_SB21_simplificada.csv")
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    with writer_engine.begin() as conn:
+        source_id = conn.execute(text("""INSERT INTO source_files(filename,sha256,period,rule_version,catalog_version)
+          VALUES (:filename,:sha,:period,'sbp-2026-v2','supplied-catalogs-v1')
+          ON CONFLICT(filename,sha256) DO UPDATE SET period=EXCLUDED.period RETURNING source_id"""),
+          {"filename": source.name, "sha": digest, "period": result["period"]}).scalar_one()
+        load_id = conn.execute(text("""INSERT INTO load_runs(source_id,status,rows_read,valid_rows,e1,e2,e3,e4)
+          VALUES (:source,'processing',:read,:valid,:e1,:e2,:e3,:e4) RETURNING load_id"""),
+          {"source": source_id, "read": result["quality"]["rows_read"], "valid": result["quality"]["valid_universe"],
+           "e1": result["quality"]["E1"], "e2": result["quality"]["E2"], "e3": result["quality"]["E3"], "e4": result["quality"]["E4"]}).scalar_one()
+        for row in result["quality"]["excluded_rows"]:
+            conn.execute(text("INSERT INTO quality_exclusions(load_id,source_row,code,reason) VALUES (:id,:row,:code,:reason)"),
+                         {"id": load_id, "row": row["row"], "code": row["reason"], "reason": row["reason"]})
+        for row in result["rankings"]:
+            conn.execute(text("""INSERT INTO ranking_results(load_id,period,ranking,position,bank_code,bank_name,activity_balance,portfolio_balance,weight_pct,valid_operations)
+              VALUES (:id,:period,:ranking,:position,:bank,:name,:balance,:portfolio,:weight,:operations)"""),
+              {"id": load_id, "period": row["Fecha"], "ranking": row["Ranking"], "position": row["Posicion"],
+               "bank": row["Codigo_Banco"], "name": row["Banco"], "balance": row["Saldo_Actividad"],
+               "portfolio": row["Total_Cartera_Local_Valida"], "weight": row["Ponderacion_Pct"], "operations": row["Operaciones_Validas"]})
+        for row in result["subactivities"]:
+            conn.execute(text("""INSERT INTO ranking_subactivities(load_id,period,ranking,subactivity,bank_code,balance)
+              VALUES (:id,:period,:ranking,:subactivity,:bank,:balance)"""),
+              {"id": load_id, "period": row["Fecha"], "ranking": row["Ranking"], "subactivity": row["Subactividad"],
+               "bank": row["Codigo_Banco"], "balance": row["Saldo"]})
+        conn.execute(text("UPDATE load_runs SET status='published' WHERE load_id=:id"), {"id": load_id})
+        conn.execute(text("INSERT INTO audit_events(load_id,action,actor,details) VALUES (:id,'publish','administrador',:details)"),
+                     {"id": load_id, "details": json.dumps({"sha256": digest, "period": result["period"]})})
+    return {"api_version": API_VERSION, "load_id": str(load_id), "status": "published",
+            "quality": result["quality"], "source_sha256": digest}
 
 @app.get("/api/comparisons")
 def comparisons():

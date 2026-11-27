@@ -9,6 +9,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
       - ./db/002_runs.sql:/docker-entrypoint-initdb.d/002-runs.sql:ro
+      - ./db/003_sbp_domain.sql:/docker-entrypoint-initdb.d/003-sbp-domain.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agent -d agent_template"]
       interval: 5s
