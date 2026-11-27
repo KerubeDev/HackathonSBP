@@ -18,6 +18,7 @@ PERCENT = Decimal("0.0001")
 PERSONAL_CREDIT = "K.64.649.6492.64921"
 AUTOMOBILE = "K.64.649.6492.64922"
 CREDIT_CARD = "K.64.649.6499.64991"
+OFFICIAL_BANK_CODES = frozenset(f"{code:03d}" for code in range(101, 113))
 
 
 @dataclass(frozen=True)
@@ -42,18 +43,22 @@ class CreditRecord:
     balance: Decimal
     activity_code: str
     facility_code: str
+    source_row: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.balance, Decimal):
             raise TypeError("balance must be a Decimal")
         if self.balance.quantize(CENT) != self.balance:
             raise ValueError("balance must use at most two decimal places")
+        if self.source_row is not None and self.source_row < 1:
+            raise ValueError("source_row must be positive")
 
 
 @dataclass(frozen=True)
 class Exclusion:
     loan_number: str
     reason: str
+    source_row: int
 
 
 @dataclass(frozen=True)
@@ -129,6 +134,8 @@ class RankingEngine:
         self.banks = {bank.code: bank for bank in bank_list}
         if len(self.activities) != len(activity_list) or len(self.banks) != len(bank_list):
             raise ValueError("catalog codes must be unique")
+        if set(self.banks) != OFFICIAL_BANK_CODES:
+            raise ValueError("the SBP bank catalog must contain exactly codes 101 through 112")
         self.macroactivities = sorted({entry.macroactivity for entry in activity_list})
         if len(self.macroactivities) != 6:
             raise ValueError("the SBP catalog must define exactly six macroactivities")
@@ -143,27 +150,28 @@ class RankingEngine:
         period = next(iter(periods), "")
         exclusions: list[Exclusion] = []
         alerts: list[QualityAlert] = []
-        unique: list[CreditRecord] = []
+        unique: list[tuple[int, CreditRecord]] = []
         loans: set[str] = set()
-        for row in rows:
+        for input_index, row in enumerate(rows, start=1):
+            source_row = row.source_row or input_index
             if row.loan_number in loans:
-                exclusions.append(Exclusion(row.loan_number, "E1_DUPLICATE"))
+                exclusions.append(Exclusion(row.loan_number, "E1_DUPLICATE", source_row))
             else:
                 loans.add(row.loan_number)
-                unique.append(row)
+                unique.append((source_row, row))
 
-        local = [row for row in unique if row.destination == "L"]
-        exclusions.extend(Exclusion(row.loan_number, "E2_FOREIGN_DESTINATION") for row in unique if row.destination != "L")
-        positive = [row for row in local if row.balance > 0]
-        exclusions.extend(Exclusion(row.loan_number, "E3_NON_POSITIVE_BALANCE") for row in local if row.balance <= 0)
-        valid = [row for row in positive if row.activity_code in self.activities]
-        exclusions.extend(Exclusion(row.loan_number, "E4_UNCATALOGUED_ACTIVITY") for row in positive if row.activity_code not in self.activities)
+        local = [(source_row, row) for source_row, row in unique if row.destination == "L"]
+        exclusions.extend(Exclusion(row.loan_number, "E2_FOREIGN_DESTINATION", source_row) for source_row, row in unique if row.destination != "L")
+        positive = [(source_row, row) for source_row, row in local if row.balance > 0]
+        exclusions.extend(Exclusion(row.loan_number, "E3_NON_POSITIVE_BALANCE", source_row) for source_row, row in local if row.balance <= 0)
+        valid = [(source_row, row) for source_row, row in positive if row.activity_code in self.activities]
+        exclusions.extend(Exclusion(row.loan_number, "E4_UNCATALOGUED_ACTIVITY", source_row) for source_row, row in positive if row.activity_code not in self.activities)
 
         subactivity_totals: dict[tuple[str, str, str], Decimal] = defaultdict(lambda: Decimal("0.00"))
         activity_totals: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal("0.00"))
         operations: dict[tuple[str, str], int] = defaultdict(int)
         portfolio_totals: dict[str, Decimal] = defaultdict(lambda: Decimal("0.00"))
-        for row in valid:
+        for _, row in valid:
             entry = self.activities[row.activity_code]
             if row.bank_code not in self.banks:
                 alerts.append(QualityAlert("UNKNOWN_BANK", row.loan_number, "Bank code is not in the supplied catalog."))

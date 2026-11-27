@@ -15,7 +15,7 @@ ACTIVITIES = [
     ActivityCatalogEntry("G.46", "COMERCIO", "Mayorista"),
     ActivityCatalogEntry("L.68", "HIPOTECARIO", "Vivienda propia"),
 ]
-BANKS = [Bank("101", "Banco Uno"), Bank("102", "Banco Dos")]
+BANKS = [Bank(f"{code:03d}", f"Banco {code}") for code in range(101, 113)]
 
 
 def record(
@@ -26,6 +26,7 @@ def record(
     destination: str = "L",
     activity: str = "K.64.649.6492.64921",
     facility: str = "01",
+    source_row: int | None = None,
 ) -> CreditRecord:
     return CreditRecord(
         period="20260731",
@@ -35,6 +36,7 @@ def record(
         balance=Decimal(balance),
         activity_code=activity,
         facility_code=facility,
+        source_row=source_row,
     )
 
 
@@ -58,11 +60,11 @@ def test_cascade_keeps_the_first_failure_only_and_retains_exclusion_evidence():
         "excluded_e4_uncatalogued_activity": 1,
         "local_valid_rows": 2,
     }
-    assert [(item.loan_number, item.reason) for item in result.exclusions] == [
-        ("duplicate", "E1_DUPLICATE"),
-        ("foreign", "E2_FOREIGN_DESTINATION"),
-        ("non-positive", "E3_NON_POSITIVE_BALANCE"),
-        ("unknown", "E4_UNCATALOGUED_ACTIVITY"),
+    assert [(item.loan_number, item.reason, item.source_row) for item in result.exclusions] == [
+        ("duplicate", "E1_DUPLICATE", 2),
+        ("foreign", "E2_FOREIGN_DESTINATION", 3),
+        ("non-positive", "E3_NON_POSITIVE_BALANCE", 4),
+        ("unknown", "E4_UNCATALOGUED_ACTIVITY", 5),
     ]
 
 
@@ -76,11 +78,12 @@ def test_rankings_include_every_bank_and_macroactivity_with_exact_cent_totals():
     )
 
     agro = [row for row in result.rankings if row.macroactivity == "AGROPECUARIO"]
-    assert [(row.bank_code, row.position, row.activity_balance, row.total_valid_portfolio, row.weight_pct) for row in agro] == [
+    assert [(row.bank_code, row.position, row.activity_balance, row.total_valid_portfolio, row.weight_pct) for row in agro[:2]] == [
         ("101", 1, Decimal("20.00"), Decimal("20.00"), Decimal("100.0000")),
         ("102", 2, Decimal("20.00"), Decimal("20.00"), Decimal("100.0000")),
     ]
-    assert len(result.rankings) == 12  # six rankings by two banks
+    assert len(result.rankings) == 72  # six rankings by twelve banks
+    assert {row.position for row in agro} == set(range(1, 13))
     assert result.reconciliation_errors == []
 
 
@@ -94,7 +97,7 @@ def test_ties_use_ascending_bank_code_and_weight_uses_full_portfolio_denominator
     )
 
     agro = [row for row in result.rankings if row.macroactivity == "AGROPECUARIO"]
-    assert [(row.bank_code, row.position, row.weight_pct) for row in agro] == [
+    assert [(row.bank_code, row.position, row.weight_pct) for row in agro[:2]] == [
         ("101", 1, Decimal("50.0000")),
         ("102", 2, Decimal("100.0000")),
     ]
@@ -132,3 +135,8 @@ def test_rejects_mixed_periods_and_non_cent_values():
         engine.calculate([record("a"), CreditRecord(**{**record("b").__dict__, "period": "20260831"})])
     with pytest.raises(ValueError, match="two decimal"):
         engine.calculate([record("a", balance="1.001")])
+
+
+def test_rejects_a_catalog_without_the_official_twelve_banks():
+    with pytest.raises(ValueError, match="101 through 112"):
+        RankingEngine(ACTIVITIES, BANKS[:-1])
