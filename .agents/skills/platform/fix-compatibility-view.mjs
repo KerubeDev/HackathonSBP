@@ -62,6 +62,7 @@ function parseArgs(argv) {
   const flags = { write: false, json: false, help: false };
   for (const token of argv) {
     if (token === '--write') flags.write = true;
+    else if (token === '--dry-run') flags.write = false;
     else if (token === '--json') flags.json = true;
     else if (token === '--help' || token === '-h') flags.help = true;
     else throw new UsageError(`unknown argument: ${token}`);
