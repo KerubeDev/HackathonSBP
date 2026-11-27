@@ -1,8 +1,9 @@
-import json, logging, time
+import csv, hashlib, io, json, logging, time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from uuid import uuid4
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import create_engine, text
 from .agent import run_agent, engine
 from .config import settings
@@ -108,6 +109,36 @@ def subactivities(ranking: str | None = None, bank: str | None = None):
     if bank:
         rows = [row for row in rows if row["Codigo_Banco"] == bank]
     return {"api_version": API_VERSION, "subactivities": rows}
+
+@app.get("/api/exports/rankings.csv")
+def export_rankings(ranking: str | None = None):
+    rows = official_rankings()["rankings"]
+    if ranking:
+        rows = [row for row in rows if row["Ranking"] == ranking]
+    fields = ["Fecha", "Ranking", "Posicion", "Codigo_Banco", "Banco",
+              "Saldo_Actividad", "Total_Cartera_Local_Valida", "Ponderacion_Pct", "Operaciones_Validas"]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows({field: row[field] for field in fields} for row in rows)
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=sbp-rankings.csv"})
+
+@app.post("/api/rankings/preview")
+async def preview_upload(file: UploadFile = File(...), x_api_key: str | None = Header(default=None),
+                         x_profile: str | None = Header(default=None)):
+    authorize(x_api_key)
+    if x_profile != "administrador":
+        raise HTTPException(403, detail={"code": "FORBIDDEN", "message": "Administrator capability required"})
+    payload = await file.read()
+    try:
+        rows = list(csv.DictReader(io.StringIO(payload.decode("utf-8-sig"))))
+        errors = __import__("app.rankings", fromlist=["validate_at03"]).validate_at03(rows)
+    except (UnicodeDecodeError, csv.Error) as exc:
+        raise HTTPException(422, detail={"code": "INVALID_AT03", "message": str(exc)})
+    digest = hashlib.sha256(payload).hexdigest()
+    return {"api_version": API_VERSION, "filename": file.filename, "sha256": digest,
+            "rows": len(rows), "errors": errors, "status": "previewed" if not errors else "failed"}
 
 @app.get("/api/comparisons")
 def comparisons():
