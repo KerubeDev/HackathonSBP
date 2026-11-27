@@ -29,7 +29,6 @@ outputs:
     required: [scope, objective, findings, summary, limitations]
 sideEffects:
   - post-pr-comment
-approvalRequired: true
 dependencies: []
 stopCondition: Repository or scoped audit complete; evidence-backed structured result returned; limitations and completion criteria checked.
 risk: medium

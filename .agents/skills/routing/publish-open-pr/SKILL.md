@@ -41,7 +41,9 @@ outputs:
 sideEffects:
   - push-branch
   - create-pull-request
-approvalRequired: true
+capabilityRequirements:
+  - engineering-preflight (required for software publication)
+  - testing (required for validation evidence)
 dependencies: []
 stopCondition: Use when the user wants to publish a finished subissue as an open GitHub pull request from an already-prepared issue branch complete; structured result returned; completion criteria checked.
 risk: medium
@@ -187,3 +189,5 @@ Return `PublishOpenPrArtifact` as structured output in the current response. Do 
 ## Release Readiness Boundary
 
 Publication may provide candidate evidence, but `ship-subissue` owns the release-candidate handoff. Preserve fixed point, digest, SBOM/VEX/provenance, owner, approval, rollback, canary/rollout evidence, and next consumer without widening this skill's push/PR side effects.
+
+Publication note: push is a separate approved effect from implementation and commit creation.

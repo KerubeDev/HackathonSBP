@@ -49,7 +49,6 @@ outputs:
 sideEffects:
   - write-files
   - post-pr-comment
-approvalRequired: true
 dependencies:
   - plan-review-fixes
   - implement

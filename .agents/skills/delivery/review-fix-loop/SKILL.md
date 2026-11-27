@@ -16,7 +16,6 @@ sideEffects:
   - commit-git
   - push-branch
 
-approvalRequired: true
 dependencies:
   - review-pr
   - plan-review-fixes

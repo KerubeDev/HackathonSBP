@@ -25,7 +25,6 @@ outputs:
 sideEffects:
   - post-pr-comment
 
-approvalRequired: true
 dependencies: []
 stopCondition: "Convert review-pr findings on a GitHub PR into a concrete remediation plan and post that plan as PR comments complete; structured result returned; completion criteria checked."
 risk: "medium"

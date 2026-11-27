@@ -69,10 +69,9 @@ fixturesPath: .agents/skills/platform/fixtures/behavioral/tdd.json
 diataxis: how-to
 tags: [tdd, testing, delivery, implementation]
 compatibility: [implement, code-review]
-approvalRequired: false
+approvalRequired: true
 approvalFor: []
 sideEffects: [write-code, commit-git]
-approvalRequired: true
 dependencies: []
 stopCondition: Test-driven development complete; structured result returned; completion criteria checked.
 risk: medium
