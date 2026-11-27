@@ -1,1 +1,16 @@
-const nextConfig = { output: 'standalone' }; export default nextConfig;
+import path from 'node:path';
+
+const nextConfig = {
+  output: 'standalone',
+  outputFileTracingRoot: path.join(process.cwd()),
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000'}/api/:path*`,
+      },
+    ];
+  },
+};
+
+export default nextConfig;

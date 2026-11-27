@@ -54,7 +54,7 @@ Start the complete local stack with two terminals:
 ```
 
 The backend is available at `http://localhost:8000`, the frontend at
-`http://localhost:3000`, and interactive API documentation at
+`http://localhost:3001`, and interactive API documentation at
 `http://localhost:8000/docs`.
 
 It follows the `quirk` method: clarify before building, preserve context, split work into claimable slices, review against separate Standards and Spec axes, repair with explicit plans, and ship only on clean evidence.
