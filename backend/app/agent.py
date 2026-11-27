@@ -3,6 +3,7 @@ from typing import Any, TypedDict
 import json, re
 import pandas as pd
 from sqlalchemy import create_engine, text
+from langgraph.graph import StateGraph, END
 from .config import settings
 
 class AgentState(TypedDict, total=False):
@@ -58,9 +59,21 @@ def analysis_node(state: AgentState) -> AgentState:
 def output_node(state: AgentState) -> AgentState:
     return {**state, 'summary': f"Returned {len(state.get('rows', []))} rows for the requested analysis."}
 
+def _build_graph():
+    graph = StateGraph(AgentState)
+    graph.add_node('input_node', input_node)
+    graph.add_node('analysis_node', analysis_node)
+    graph.add_node('output_node', output_node)
+    graph.set_entry_point('input_node')
+    graph.add_edge('input_node', 'analysis_node')
+    graph.add_edge('analysis_node', 'output_node')
+    graph.add_edge('output_node', END)
+    return graph.compile()
+
+REA_GRAPH = _build_graph()
+
 def run_agent(request: str, schema: str | None = None) -> dict[str, Any]:
-    state = input_node({'request': request, 'schema': schema or ''})
-    state = analysis_node(state)
-    if state.get('error') and state.get('attempts', 0) < 2: state = analysis_node(state)
-    state = output_node(state)
+    state = REA_GRAPH.invoke({'request': request, 'schema': schema or ''})
+    if state.get('error') and state.get('attempts', 0) < 2:
+        state = output_node(analysis_node(state))
     return {'summary': state.get('summary',''), 'sql_query': state.get('sql',''), 'data': state.get('rows',[]), 'chart_config': state.get('chart_config',{}), 'provider': state.get('provider'), 'error': state.get('error')}
