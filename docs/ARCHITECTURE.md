@@ -1,10 +1,27 @@
-# Generic AI Agent Template Architecture
+# Hackathon SBP Architecture
 
 ## Purpose
 
-The template accepts a natural-language data question and returns a dashboard-ready
-analysis result. It currently contains no business-specific rules, but the base is
-designed to evolve when a future challenge is introduced.
+The application has two separate calculation boundaries: a deterministic SBP
+ranking engine for official results and a read-only AI analysis seam for
+explaining persisted results. The AI is never used to calculate, classify, rank,
+or mutate an official result.
+
+## Deterministic ranking engine
+
+`backend/app/rankings.py` is a pure domain module. Its caller supplies preserved
+text codes, `Decimal` balances, the frozen CINU/SB109 activity catalog, and the
+bank/facility catalogs. It processes one period at a time and emits:
+
+- an exclusive E1–E4 quality report and per-record exclusion evidence;
+- SB21 CONSUMO subactivity reclassification and catalog-reference alerts;
+- six rankings with all catalogued banks, integer-cent/`Decimal` totals,
+  four-decimal half-up weights, and bank-code tie-breaking;
+- subactivity totals, reconciliation outcomes, source hash, and rule/catalog
+  version identity.
+
+This module does not import the LLM graph, database, or web framework, making its
+official outputs deterministic and independently testable.
 
 ## Runtime flow
 
@@ -45,6 +62,8 @@ cost/security controls, load testing, CI/CD, and hardened deployment.
 
 - `backend/app/config.py`: environment configuration.
 - `backend/app/agent.py`: REA graph and analysis orchestration.
+- `backend/app/rankings.py`: deterministic E1–E4, SB21, ranking, and
+  reconciliation domain logic.
 - `backend/app/tools.py`: extension registry for future tools.
 - `backend/app/main.py`: HTTP contract and persistence seam.
 - `db/`: sample schema only.
