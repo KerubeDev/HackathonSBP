@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Chart from '../components/Chart';
+import { API, sbpApi } from '../lib/api';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const activities = ['HIPOTECARIO', 'CONSTRUCCION', 'INDUSTRIA', 'AGROPECUARIO', 'COMERCIO', 'CONSUMO'];
 
 type Row = {
@@ -32,15 +32,14 @@ export default function Home() {
 
   useEffect(() => {
     setStatus('loading');
-    fetch(`${API}/api/rankings?ranking=${ranking}`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('No se pudo cargar el ranking')))
+    sbpApi.rankings(ranking)
       .then((body) => { setRows(body.rankings); setQuality(body.quality); setStatus('ready'); })
       .catch((reason) => { setError(reason.message); setStatus('error'); });
   }, [ranking]);
 
   useEffect(() => {
     if (view === 'comparisons' && !comparison) {
-      fetch(`${API}/api/comparisons`).then((response) => response.json()).then(setComparison)
+      sbpApi.comparisons().then(setComparison)
         .catch(() => setError('No se pudieron cargar las comparaciones'));
     }
   }, [view, comparison]);
@@ -52,10 +51,7 @@ export default function Home() {
   async function previewUpload() {
     if (!upload) return;
     setUploadMessage('Validando archivo…');
-    const form = new FormData();
-    form.append('file', upload);
-    const response = await fetch(`${API}/api/rankings/preview`, { method: 'POST', headers: { 'x-profile': 'administrador' }, body: form });
-    const body = await response.json();
+    const body = await sbpApi.preview(upload);
     setUploadMessage(body.errors?.length ? `Archivo inválido: ${body.errors.join(', ')}` : `Preview correcto: ${body.rows} filas · SHA-256 ${body.sha256}`);
   }
 
