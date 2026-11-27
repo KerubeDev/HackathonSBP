@@ -33,10 +33,14 @@ def _fallback_sql(request: str) -> str:
 def _ask_to_sql(request: str, schema: str) -> tuple[str, str]:
     # Provider seam: OpenRouter first, Ollama fallback. Keeping the prompt generic is intentional.
     if settings.openrouter_api_key:
-        from langchain_openai import ChatOpenAI
-        llm = ChatOpenAI(model=settings.openrouter_model, api_key=settings.openrouter_api_key, base_url='https://openrouter.ai/api/v1', temperature=0)
-        answer = llm.invoke(f"Return only SQL. User question: {request}\nSchema: {schema}")
-        return safe_sql(answer.content), 'openrouter'
+        try:
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(model=settings.openrouter_model, api_key=settings.openrouter_api_key, base_url='https://openrouter.ai/api/v1', temperature=0)
+            answer = llm.invoke(f"Return only SQL. User question: {request}\nSchema: {schema}")
+            return safe_sql(answer.content), 'openrouter'
+        except Exception:
+            pass
+    try:
     try:
         import httpx
         r = httpx.post(f'{settings.ollama_base_url}/api/generate', json={'model': settings.local_model, 'prompt': f'Return only SQL. Question: {request}\nSchema: {schema}', 'stream': False}, timeout=20)
