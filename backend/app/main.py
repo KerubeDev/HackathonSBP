@@ -8,7 +8,7 @@ from fastapi.responses import Response
 from sqlalchemy import create_engine, text
 from .agent import run_agent, engine
 from .config import settings
-from .contracts import API_VERSION, ErrorBody, RunEnvelope, RunRequest
+from .contracts import API_VERSION, ErrorBody, LoadCancellation, RankingQuery, RunEnvelope, RunRequest, UploadConfirmation
 from .rankings import calculate_from_files, compare_rankings
 writer_engine = create_engine(settings.database_url, pool_pre_ping=True)
 
@@ -230,6 +230,35 @@ def publish_fixture(period: str = Body(..., embed=True), x_api_key: str | None =
                      {"id": load_id, "details": json.dumps({"sha256": digest, "period": result["period"]})})
     return {"api_version": API_VERSION, "load_id": str(load_id), "status": "published",
             "quality": result["quality"], "source_sha256": digest}
+
+@app.post("/api/rankings/confirm")
+def confirm_upload(body: UploadConfirmation, x_api_key: str | None = Header(default=None),
+                   x_profile: str | None = Header(default=None)):
+    """Confirm a validated period through the same atomic publication path."""
+    return publish_fixture(body.period, x_api_key, x_profile)
+
+@app.post("/api/rankings/cancel")
+def cancel_upload(body: LoadCancellation, x_api_key: str | None = Header(default=None),
+                  x_profile: str | None = Header(default=None)):
+    authorize(x_api_key)
+    if x_profile != "administrador":
+        raise HTTPException(403, detail={"code": "FORBIDDEN", "message": "Administrator capability required"})
+    with writer_engine.begin() as conn:
+        load_id = conn.execute(text("""INSERT INTO load_runs(status,error_message)
+          VALUES ('cancelled',:reason) RETURNING load_id"""), {"reason": body.reason}).scalar_one()
+        conn.execute(text("INSERT INTO audit_events(load_id,action,actor,details) VALUES (:id,'cancel','administrador',:details)"),
+                     {"id": load_id, "details": json.dumps({"reason": body.reason})})
+    return {"api_version": API_VERSION, "load_id": str(load_id), "status": "cancelled"}
+
+@app.get("/api/rankings/loads")
+def load_history(x_api_key: str | None = Header(default=None), x_profile: str | None = Header(default=None)):
+    authorize(x_api_key)
+    if x_profile not in {"administrador", "analista"}:
+        raise HTTPException(403, detail={"code": "FORBIDDEN", "message": "Administrator or analyst capability required"})
+    with writer_engine.connect() as conn:
+        rows = conn.execute(text("""SELECT load_id,status,rows_read,valid_rows,e1,e2,e3,e4,created_at
+          FROM load_runs ORDER BY created_at DESC LIMIT 100""")).mappings().all()
+    return {"api_version": API_VERSION, "loads": [dict(row) for row in rows]}
 
 @app.get("/api/comparisons")
 def comparisons():

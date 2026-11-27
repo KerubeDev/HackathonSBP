@@ -26,3 +26,17 @@ class RunEnvelope(BaseModel):
     result: dict[str, Any] | None = None
     warnings: list[str] = Field(default_factory=list)
     error: ErrorBody | None = None
+
+class RankingQuery(BaseModel):
+    period: str | None = None
+    ranking: str | None = None
+    bank: str | None = None
+    limit: int = Field(default=100, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
+
+class UploadConfirmation(BaseModel):
+    period: str = Field(min_length=8, max_length=8, pattern=r"^\d{8}$")
+    source_sha256: str | None = Field(default=None, min_length=64, max_length=64)
+
+class LoadCancellation(BaseModel):
+    reason: str = Field(default="cancelled by administrator", max_length=500)
