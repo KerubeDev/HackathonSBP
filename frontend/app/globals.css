@@ -1,0 +1,2 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+:root{--ink:#13251f;--mint:#d9f7e9;--lime:#b8f36b;--cream:#f7f5ef}*{box-sizing:border-box}body{margin:0;background:var(--cream);color:var(--ink);font-family:Arial,sans-serif}button{cursor:pointer}
