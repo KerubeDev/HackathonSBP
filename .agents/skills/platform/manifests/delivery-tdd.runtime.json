@@ -2,7 +2,7 @@
   "skill": "delivery/tdd",
   "version": 1,
   "generatedFrom": "frontmatter",
-  "frontmatterHash": "d45c59c60f2439b3fd06f5f311c013a287609783e11c14faf785c3499bdeada4",
+  "frontmatterHash": "0a18621f2bbdd15a19e932684da8695a3e280101a66a20d01da0bdae604d30a1",
   "role": "workflow",
   "router": {
     "positive": [],
@@ -31,7 +31,7 @@
       "write-code",
       "commit-git"
     ],
-    "approvalRequired": false,
+    "approvalRequired": true,
     "approvalFor": [],
     "risk": "medium",
     "trustTier": 3
