@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from uuid import uuid4
 from fastapi import Body, FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.responses import Response
 from sqlalchemy import create_engine, text
@@ -15,6 +16,13 @@ writer_engine = create_engine(settings.database_url, pool_pre_ping=True)
 logging.basicConfig(level=settings.log_level)
 log = logging.getLogger("rea-agent")
 app = FastAPI(title="Generic REA Agent API", version="1.0.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 executor = ThreadPoolExecutor(max_workers=4)
 DATA_DIR = __import__("pathlib").Path(__file__).resolve().parents[2] / "docs" / "track" / "datos"
 
