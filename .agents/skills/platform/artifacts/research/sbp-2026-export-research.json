@@ -1,0 +1,32 @@
+{
+  "artifactId": "sbp-2026-export-research",
+  "artifactType": "research",
+  "operationId": "research-sbp-template-2026-11-27",
+  "objective": "Select documented primary-source patterns for local CSV upload and report exports.",
+  "query": "How should the refined SBP template handle FastAPI uploads, exact CSV parsing, XLSX/PDF exports, and ECharts?",
+  "selectedSources": [
+    {"url": "https://fastapi.tiangolo.com/tutorial/request-files/", "reason": "official FastAPI documentation"},
+    {"url": "https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html", "reason": "official pandas API documentation"},
+    {"url": "https://openpyxl.readthedocs.io/en/stable/", "reason": "official openpyxl documentation"},
+    {"url": "https://docs.reportlab.com/reportlab/userguide/ch1_intro/", "reason": "official ReportLab documentation"},
+    {"url": "https://echarts.apache.org/examples/en/index.html", "reason": "official Apache ECharts examples"}
+  ],
+  "findings": [
+    "FastAPI UploadFile uses a spooled file and exposes metadata/file operations, making it appropriate for bounded local CSV uploads.",
+    "pandas.read_csv supports explicit dtype, encoding, decimal, bad-line behavior, and chunksize; the SBP importer must use explicit string dtypes for codes and preserve literal NA.",
+    "openpyxl is a primary Python library for reading and writing XLSX files.",
+    "ReportLab directly generates PDF documents, tables, and charts from Python.",
+    "Apache ECharts provides the official chart examples and configuration reference for the dashboard."
+  ],
+  "decisions": [
+    "Use UploadFile with size and extension validation for AT03 ingestion.",
+    "Use pandas with explicit text dtypes and chunking for large AT03 files.",
+    "Use openpyxl for XLSX exports and ReportLab for PDF exports.",
+    "Keep ECharts as the frontend visualization contract."
+  ],
+  "openQuestions": [
+    "Exact export styling and PDF pagination can be refined during implementation.",
+    "Production object storage is outside the local hackathon baseline."
+  ],
+  "createdAt": "2026-11-27"
+}
