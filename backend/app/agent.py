@@ -13,11 +13,18 @@ class AgentState(TypedDict, total=False):
 engine = create_engine(settings.database_url, pool_pre_ping=True)
 
 def schema_context() -> str:
-    return """Tables: sample_metrics(metric_date DATE, category TEXT, value NUMERIC, region TEXT)."""
+    with engine.connect() as conn:
+        rows = conn.execute(text(
+            "SELECT table_name, column_name, data_type FROM information_schema.columns "
+            "WHERE table_schema = 'public' ORDER BY table_name, ordinal_position"
+        )).all()
+    if not rows:
+        return "No public tables are available."
+    return "\n".join(f"{table}.{column}: {kind}" for table, column, kind in rows)
 
 def safe_sql(sql: str) -> str:
     sql = sql.strip().removeprefix('```sql').removesuffix('```').strip().rstrip(';')
-    if not re.match(r'(?is)^select\b', sql) or re.search(r'(?is)\b(insert|update|delete|drop|alter|truncate|create|grant|revoke)\b', sql):
+    if not re.match(r'(?is)^(select|with)\b', sql) or ";" in sql or re.search(r'(?is)\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|copy|execute)\b', sql):
         raise ValueError('Only read-only SELECT statements are allowed')
     return sql
 
@@ -31,21 +38,26 @@ def _fallback_sql(request: str) -> str:
     return 'SELECT metric_date, category, value, region FROM sample_metrics ORDER BY metric_date DESC LIMIT 100'
 
 def _ask_to_sql(request: str, schema: str) -> tuple[str, str]:
-    # Provider seam: OpenRouter first, Ollama fallback. Keeping the prompt generic is intentional.
-    if settings.openrouter_api_key:
-        try:
-            from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model=settings.openrouter_model, api_key=settings.openrouter_api_key, base_url='https://openrouter.ai/api/v1', temperature=0)
-            answer = llm.invoke(f"Return only SQL. User question: {request}\nSchema: {schema}")
-            return safe_sql(answer.content), 'openrouter'
-        except Exception:
-            pass
-    try:
+    prompt = f"Return only SQL. User question: {request}\nSchema:\n{schema}"
+    if settings.llm_provider == "openrouter":
+        if not settings.openrouter_api_key:
+            raise RuntimeError("OPENROUTER_API_KEY is required when LLM_PROVIDER=openrouter")
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(model=settings.openrouter_model, api_key=settings.openrouter_api_key, base_url='https://openrouter.ai/api/v1', temperature=0)
+        return safe_sql(llm.invoke(prompt).content), 'openrouter'
+    if settings.llm_provider in {"ollama", "qvac"}:
         import httpx
-        r = httpx.post(f'{settings.ollama_base_url}/api/generate', json={'model': settings.local_model, 'prompt': f'Return only SQL. Question: {request}\nSchema: {schema}', 'stream': False}, timeout=20)
-        r.raise_for_status(); return safe_sql(r.json()['response']), 'ollama'
-    except Exception:
+        if settings.llm_provider == "ollama":
+            url, payload, model = f'{settings.ollama_base_url}/api/generate', {'model': settings.local_model, 'prompt': prompt, 'stream': False}, settings.local_model
+            r = httpx.post(url, json=payload, timeout=20)
+            r.raise_for_status()
+            return safe_sql(r.json()['response']), f'ollama:{model}'
+        url = f'{settings.qvac_base_url}/v1/chat/completions'
+        r = httpx.post(url, json={'model': settings.qvac_model, 'messages': [{'role': 'user', 'content': prompt}], 'temperature': 0}, timeout=20)
+        r.raise_for_status(); return safe_sql(r.json()['choices'][0]['message']['content']), f'qvac:{settings.qvac_model}'
+    if settings.llm_provider == "deterministic" and settings.allow_deterministic_fallback:
         return _fallback_sql(request), 'deterministic-fallback'
+    raise ValueError(f"Unsupported or disabled LLM_PROVIDER: {settings.llm_provider}")
 
 def analysis_node(state: AgentState) -> AgentState:
     try:
@@ -53,7 +65,7 @@ def analysis_node(state: AgentState) -> AgentState:
         with engine.connect() as conn:
             df = pd.read_sql(text(sql), conn).head(settings.agent_max_rows)
         rows = json.loads(df.to_json(orient='records', date_format='iso'))
-        chart = {'type': 'bar', 'data': {'labels': list(df.iloc[:,0].astype(str)) if len(df.columns) else [], 'datasets': [{'label': str(df.columns[-1]) if len(df.columns) else 'value', 'data': df.iloc[:,-1].tolist() if len(df.columns) else []}]}}
+        chart = {'xAxis': {'type': 'category', 'data': list(df.iloc[:, 0].astype(str)) if len(df.columns) else []}, 'yAxis': {'type': 'value'}, 'series': [{'type': 'bar', 'name': str(df.columns[-1]) if len(df.columns) else 'value', 'data': df.iloc[:, -1].tolist() if len(df.columns) else []}]}
         return {**state, 'sql': sql, 'rows': rows, 'chart_config': chart, 'provider': provider, 'attempts': state.get('attempts',0)+1}
     except Exception as exc:
         if state.get('attempts', 0) < 1: return {**state, 'attempts': state.get('attempts',0)+1, 'error': str(exc)}
@@ -79,4 +91,4 @@ def run_agent(request: str, schema: str | None = None) -> dict[str, Any]:
     state = REA_GRAPH.invoke({'request': request, 'schema': schema or ''})
     if state.get('error') and state.get('attempts', 0) < 2:
         state = output_node(analysis_node(state))
-    return {'summary': state.get('summary',''), 'sql_query': state.get('sql',''), 'data': state.get('rows',[]), 'chart_config': state.get('chart_config',{}), 'provider': state.get('provider'), 'error': state.get('error')}
+    return {'summary': state.get('summary',''), 'sql_query': state.get('sql',''), 'data': state.get('rows',[]), 'chart_config': state.get('chart_config',{}), 'provider': state.get('provider'), 'model': settings.openrouter_model if settings.llm_provider == 'openrouter' else (settings.local_model if settings.llm_provider == 'ollama' else settings.qvac_model), 'execution_mode': settings.execution_mode, 'status': 'failed' if state.get('error') else 'completed', 'metadata': {'row_count': len(state.get('rows', []))}, 'warnings': [], 'error': state.get('error')}

@@ -1,0 +1,47 @@
+{
+  "artifactId": "template-refinement-2026-11-27",
+  "artifactType": "grill-with-docs",
+  "operationId": "grill-template-refinement-2026-11-27",
+  "parentOperationId": null,
+  "objective": "Refine and document the current generic AI Agent template as a hackathon-ready baseline without adding business-specific context.",
+  "context": "The current repository contains a generic REA and ask-to agent skeleton with FastAPI, LangGraph, PostgreSQL, Pandas, Next.js, ECharts, and Alpine containers. Future sessions will add business context separately.",
+  "documents": [
+    "CONTEXT.md",
+    "docs/ARCHITECTURE.md",
+    "docs/adr/0001-generic-agent-template-scope.md",
+    "docs/adr/0002-rea-langgraph-architecture.md",
+    "docs/adr/0003-explicit-llm-provider-selection.md",
+    "docs/adr/0004-read-only-sql-execution.md",
+    "docs/adr/0005-configurable-execution-mode.md",
+    "docs/adr/0006-versioned-analysis-output.md"
+  ],
+  "constraints": [
+    "Keep the template business-agnostic.",
+    "Save repository artifacts in English.",
+    "Use exactly one explicitly selected LLM provider per run.",
+    "Do not infer future business requirements."
+  ],
+  "evidence": [
+    "User confirmed the template-only scope.",
+    "User confirmed explicit provider selection.",
+    "User confirmed read-only SQL, versioned output, and layered testing."
+  ],
+  "decisions": [
+    "Document the current generic architecture.",
+    "Use OpenRouter, Ollama, or QVAC through explicit configuration.",
+    "Keep future business context deferred to a later session."
+  ],
+  "residualRisks": [
+    "Production asynchronous worker mode is designed but not yet implemented.",
+    "Tenant-aware authorization is deferred.",
+    "Provider-specific QVAC response compatibility must be verified against the deployed QVAC version."
+  ],
+  "nextConsumer": "future Spanish grilling session for business-context refinement",
+  "sourceDigests": [
+    "sha256:eaa3b7415592754257b2571a913bfb825a8702a2537e2a3e50524bcd5ee008cf",
+    "sha256:73b674ecee8340a95e6a4e9ab6795af36cc86203363b5d0d2e708657b086fb65",
+    "sha256:9c6360e263da6a3861d0c5834ac7a078df16f3633b6750d8467418aa3f599d48",
+    "sha256:534cbd2c3cb89ed0856b53c3c62ece4e1364bc1bd6db00596062e61a78546407"
+  ],
+  "createdAt": "2026-11-27T06:27:52.267Z"
+}

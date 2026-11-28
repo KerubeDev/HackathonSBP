@@ -3,8 +3,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://agent:agent@postgres:5432/agent_template"
     openrouter_api_key: str | None = None
     openrouter_model: str = "qwen/qwen-2.5-72b-instruct"
+    llm_provider: str = "openrouter"
     ollama_base_url: str = "http://host.docker.internal:11434"
     local_model: str = "qwen2.5:7b"
+    qvac_base_url: str = "http://host.docker.internal:8181"
+    qvac_model: str = "default"
+    allow_deterministic_fallback: bool = False
+    execution_mode: str = "sync"
     agent_max_rows: int = 100
     api_key: str | None = None
     log_level: str = 'INFO'

@@ -22,6 +22,11 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       LOCAL_MODEL: ${LOCAL_MODEL:-qwen2.5:7b}
       API_KEY: ${API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      QVAC_BASE_URL: ${QVAC_BASE_URL:-http://host.docker.internal:8181}
+      QVAC_MODEL: ${QVAC_MODEL:-default}
+      ALLOW_DETERMINISTIC_FALLBACK: ${ALLOW_DETERMINISTIC_FALLBACK:-false}
+      EXECUTION_MODE: ${EXECUTION_MODE:-sync}
     depends_on:
       postgres:
         condition: service_healthy
