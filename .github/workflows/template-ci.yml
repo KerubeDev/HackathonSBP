@@ -1,0 +1,43 @@
+name: Template CI
+on:
+  push:
+  pull_request:
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build and smoke test Compose
+        run: |
+          cp .env.example .env
+          LLM_PROVIDER=deterministic ALLOW_DETERMINISTIC_FALLBACK=true docker compose build
+          docker compose up -d
+          for i in {1..30}; do curl -fsS http://localhost:8000/healthz && break || sleep 2; done
+          curl -fsS -X POST http://localhost:8000/api/agent/run \
+            -H 'content-type: application/json' \
+            -d '{"query":"Compare value by region","api_version":"v1"}'
+      - name: Backend tests
+        run: docker compose exec -T backend pytest -q /app/tests
+      - name: E2E smoke
+        run: node tests/e2e/smoke.mjs
+      - name: Static accessibility contract
+        run: node tests/accessibility/dashboard.test.mjs
+      - name: Visualization catalog contract
+        run: node tests/visualizations/catalog.test.mjs
+      - name: Compose validation
+        run: docker compose config
+      - name: Secret scan
+        run: |
+          ! grep -RInE '(OPENROUTER_API_KEY|API_KEY)=[^$<{[:space:]]+' \
+            --exclude-dir=.git --exclude-dir=.opencode . || true
+      - name: Dependency audit
+        run: |
+          docker compose exec -T backend pip install --no-cache-dir pip-audit
+          docker compose exec -T backend pip-audit -r /app/requirements.txt
+          docker run --rm -v "$PWD/frontend:/app" -w /app node:20-alpine \
+            sh -c 'npm install --package-lock-only --ignore-scripts --no-audit --no-fund && npm audit --omit=dev --audit-level=high'
+      - if: always()
+        run: docker compose down -v

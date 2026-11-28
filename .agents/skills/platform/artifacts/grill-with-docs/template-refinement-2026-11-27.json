@@ -3,8 +3,8 @@
   "artifactType": "grill-with-docs",
   "operationId": "grill-template-refinement-2026-11-27",
   "parentOperationId": null,
-  "objective": "Refine and document the current generic AI Agent template as a hackathon-ready baseline without adding business-specific context.",
-  "context": "The current repository contains a generic REA and ask-to agent skeleton with FastAPI, LangGraph, PostgreSQL, Pandas, Next.js, ECharts, and Alpine containers. Future sessions will add business context separately.",
+  "objective": "Refine the existing agent template against Hackathon SBP 2026 before implementation.",
+  "context": "The challenge is a local interactive banking-credit ranking platform using synthetic AT03 data, SB21 and CINU catalogs, deterministic rankings, three profiles, comparisons, quality reports, exports, and optional grounded AI.",
   "documents": [
     "CONTEXT.md",
     "docs/ARCHITECTURE.md",
@@ -13,13 +13,24 @@
     "docs/adr/0003-explicit-llm-provider-selection.md",
     "docs/adr/0004-read-only-sql-execution.md",
     "docs/adr/0005-configurable-execution-mode.md",
-    "docs/adr/0006-versioned-analysis-output.md"
+    "docs/adr/0006-versioned-analysis-output.md",
+    "docs/VISUALIZATIONS.md",
+    "docs/TEMPLATE_GAP_AUDIT.md",
+    "docs/REFINED_CONTEXT_SBP_2026.md",
+    "docs/adr/0007-sbp-ranking-domain-scope.md",
+    "docs/adr/0008-deterministic-official-rankings.md",
+    "docs/adr/0009-profile-capability-boundaries.md",
+    "docs/adr/0010-preserve-source-provenance.md"
   ],
   "constraints": [
     "Keep the template business-agnostic.",
     "Save repository artifacts in English.",
     "Use exactly one explicitly selected LLM provider per run.",
-    "Do not infer future business requirements."
+    "Do not infer future business requirements.",
+    "Do not implement broad code changes until the grill design phase is closed.",
+    "Do not create a permanent parallel business-context document.",
+    "The indications document prevails over the presentation when they differ.",
+    "Do not code until the refined context is reviewed."
   ],
   "evidence": [
     "User confirmed the template-only scope.",
@@ -29,14 +40,24 @@
   "decisions": [
     "Document the current generic architecture.",
     "Use OpenRouter, Ollama, or QVAC through explicit configuration.",
-    "Keep future business context deferred to a later session."
+    "Keep future business context deferred to a later session.",
+    "Keep provider choice open and explicit; do not prescribe a provider by environment.",
+    "Allow the template base, CONTEXT.md, ADRs, and documentation to evolve when the future challenge arrives.",
+    "Use an extensible ECharts catalog with deterministic validation, accessibility, and tabular fallback.",
+    "Show only “Template ready for the hackathon.” when readiness criteria pass.",
+    "Keep the existing Next.js/React, FastAPI/Python, LangGraph, and PostgreSQL architecture.",
+    "Use a local profile selector prepared for future authentication.",
+    "Preserve original AT03 files and calculation provenance.",
+    "Keep official rankings deterministic and use AI only for grounded explanation/exploration.",
+    "Support CSV, XLSX, PDF, and JSON exports."
   ],
   "residualRisks": [
     "Production asynchronous worker mode is designed but not yet implemented.",
     "Tenant-aware authorization is deferred.",
-    "Provider-specific QVAC response compatibility must be verified against the deployed QVAC version."
+    "Provider-specific QVAC response compatibility must be verified against the deployed QVAC version.",
+    "The current implementation does not yet satisfy the full confirmed hackathon baseline; see docs/TEMPLATE_GAP_AUDIT.md."
   ],
-  "nextConsumer": "future Spanish grilling session for business-context refinement",
+  "nextConsumer": "implementation planning after refined-context review",
   "sourceDigests": [
     "sha256:eaa3b7415592754257b2571a913bfb825a8702a2537e2a3e50524bcd5ee008cf",
     "sha256:73b674ecee8340a95e6a4e9ab6795af36cc86203363b5d0d2e708657b086fb65",

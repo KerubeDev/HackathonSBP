@@ -7,7 +7,8 @@ Accepted
 ## Decision
 
 Results contain summary, SQL, raw rows, direct ECharts options, provider/model,
-execution metadata, warnings, status, and sanitized errors.
+execution metadata, warnings, status, sanitized errors, and version metadata.
+`chart_config` is extensible, validated, accessible, and includes a table fallback.
 
 ## Consequences
 

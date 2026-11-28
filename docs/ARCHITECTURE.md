@@ -3,7 +3,8 @@
 ## Purpose
 
 The template accepts a natural-language data question and returns a dashboard-ready
-analysis result. It contains no business-specific rules.
+analysis result. It currently contains no business-specific rules, but the base is
+designed to evolve when a future challenge is introduced.
 
 ## Runtime flow
 
@@ -19,7 +20,8 @@ the `_ask_to_sql` seam and can be replaced without changing the API contract.
 
 ## Provider configuration
 
-Set exactly one provider with `LLM_PROVIDER`:
+Set exactly one provider with `LLM_PROVIDER`; no provider is prescribed by an
+environment profile:
 
 - `openrouter`: requires `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`.
 - `ollama`: uses `OLLAMA_BASE_URL` and `LOCAL_MODEL`.
@@ -27,6 +29,17 @@ Set exactly one provider with `LLM_PROVIDER`:
 - `deterministic`: available only when `ALLOW_DETERMINISTIC_FALLBACK=true`.
 
 Provider failures do not silently switch providers.
+
+## Hackathon baseline and production roadmap
+
+The hackathon baseline is a reproducible, business-agnostic demo: Compose startup,
+PostgreSQL sample data, explicit provider configuration, deterministic fallback only
+when explicitly enabled, end-to-end analysis, tests, smoke checks, documentation,
+and sanitized errors.
+
+The production roadmap is separate: durable asynchronous workers, formal migrations,
+versioned contracts, OAuth/OIDC and tenant authorization, complete observability,
+cost/security controls, load testing, CI/CD, and hardened deployment.
 
 ## Boundaries
 
@@ -39,13 +52,14 @@ Provider failures do not silently switch providers.
 
 ## Extension path
 
-Future work should add a domain adapter, schema context, prompt version, tool, or
-output interpretation layer. It should not edit the generic REA contract unless a
-versioned API change is intentional.
+Future work may add or change a domain adapter, schema context, prompt version,
+tool, or output interpretation layer. When the challenge requires changing the
+base, update `CONTEXT.md`, the applicable ADRs, contracts, tests, and this document
+together.
 
 ## Operational limits
 
-The current default execution mode is synchronous. The API and persisted run model
-are designed for a worker-backed asynchronous mode, which should be implemented
-before production-scale workloads. Authentication is an optional API key and does
-not yet model tenants or users.
+The current baseline execution mode is synchronous. A production worker-backed
+asynchronous mode is not yet implemented. Authentication is an optional API key and
+does not yet model tenants or users. The current visualization implementation is
+smaller than the planned catalog; see `docs/VISUALIZATIONS.md` and the gap audit.

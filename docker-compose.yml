@@ -8,6 +8,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+      - ./db/002_runs.sql:/docker-entrypoint-initdb.d/002-runs.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agent -d agent_template"]
       interval: 5s
@@ -17,6 +18,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://agent:agent@postgres:5432/agent_template
+      READONLY_DATABASE_URL: postgresql+psycopg://agent_readonly:agent_readonly@postgres:5432/agent_template
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-qwen/qwen-2.5-72b-instruct}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
@@ -27,6 +29,7 @@ services:
       QVAC_MODEL: ${QVAC_MODEL:-default}
       ALLOW_DETERMINISTIC_FALLBACK: ${ALLOW_DETERMINISTIC_FALLBACK:-false}
       EXECUTION_MODE: ${EXECUTION_MODE:-sync}
+      ALLOWED_CHART_TYPES: ${ALLOWED_CHART_TYPES:-table,bar,line,area,pie,scatter,radar,heatmap,funnel,gauge,treemap,boxplot,calendar}
     depends_on:
       postgres:
         condition: service_healthy

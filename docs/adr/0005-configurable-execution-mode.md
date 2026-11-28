@@ -6,8 +6,10 @@ Accepted
 
 ## Decision
 
-Development defaults to synchronous execution for fast feedback. Production can use
-the same run contract with a worker-backed asynchronous executor.
+The baseline supports synchronous execution for fast feedback. The API contract and
+persisted run model must support a worker-backed asynchronous executor as a separate
+production capability. The provider remains independently configurable in every
+environment.
 
 ## Consequences
 

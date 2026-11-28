@@ -2,10 +2,11 @@
 
 ## Current scope
 
-This repository contains a generic, business-agnostic AI Agent template for rapid
-hackathon adaptation. It is a starting point, not an implementation of a specific
-business domain. Future domain vocabulary, data contracts, users, roles, KPIs, and
-workflows must be added in a later context refinement session.
+This repository now contains the refined baseline for Hackathon SBP 2026:
+an interactive, local platform for banking-credit rankings and analysis using
+synthetic AT03 data. The domain adaptation is intentional and may continue to
+update this context, existing ADRs, code, and documentation as the challenge
+implementation evolves.
 
 ## Current architecture vocabulary
 
@@ -15,16 +16,46 @@ workflows must be added in a later context refinement session.
   a run: `openrouter`, `ollama`, `qvac`, or explicitly enabled `deterministic`.
 - **Analysis result:** Versionable JSON containing summary, SQL, rows, ECharts
   configuration, provider/model metadata, warnings, and errors.
-- **Template boundary:** Domain logic belongs in future adapters, prompts, schemas,
-  and tools; it must not be added to the generic core.
+- **Visualization catalog:** Extensible ECharts adapters selected by deterministic
+  data rules with optional constrained model suggestions and a tabular fallback.
+- **Template evolution:** The future challenge will be integrated by updating this
+  context, existing ADRs, and architecture documentation rather than creating a
+  permanently separate context document.
+- **AT03:** 61-field synthetic regulatory-shaped credit record.
+- **SB21:** Facility catalog and the special CONSUMO reclassification rule.
+- **CINU/SB109:** Frozen activity catalog used as the only activity classification key.
+- **E1–E4:** Cascading exclusions: duplicates, foreign destination, non-positive
+  balance, and uncatalogued activity.
+- **Local valid universe:** Records remaining after E1–E4.
+- **Ranking:** Six macroactivities by 12 fictitious banks and three monthly periods.
+- **Profiles:** Público, Analista, and Administrador with differentiated capabilities.
+- **Official result:** Deterministic ranking calculations; AI may explain or explore,
+  but cannot calculate or alter official rankings.
 
 ## Engineering rules
 
 Use explicit module boundaries, typed API contracts, environment-based configuration,
-read-only database access, safe SQL validation, observable run IDs, tests at unit,
-integration, and end-to-end seams, and English repository artifacts.
+explicit single-provider selection, read-only database access, safe SQL validation,
+observable request/run IDs, accessibility, tests at unit/integration/contract/E2E
+seams, reproducible environments, and English repository artifacts.
 
-## Deferred context
+## Hackathon domain rules
 
-The future business challenge is intentionally unknown. Do not infer its domain or
-modify this context with business assumptions until the next refinement session.
+- Source files and supplied catalogs are authoritative; the indications document
+  prevails over presentation slides if they differ.
+- Original uploaded files are immutable and retained with hash, period, uploader,
+  rule/catalog versions, and processing status.
+- Rankings use exact decimal/cent values, official E1–E4 cascade, SB21, full-bank
+  denominators, four-decimal percentages, and official tie-breaking.
+- All six rankings are computed for all 12 banks in all three periods, including
+  zero-balance banks.
+- The application always shows source, period, update time, fictitious-data notice,
+  rule version, and quality status.
+- No customer names, IDs, or customer attributes may classify economic activity.
+
+## Deferred implementation decisions
+
+Browser visual regression, durable production workers, OAuth/OIDC, tenant isolation,
+advanced observability, and load testing remain production-roadmap work. The current
+refined context is documentation-only; coding begins after this refinement artifact
+is reviewed.

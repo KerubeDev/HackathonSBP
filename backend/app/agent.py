@@ -5,12 +5,13 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from langgraph.graph import StateGraph, END
 from .config import settings
+from .visualizations import choose_chart
 
 class AgentState(TypedDict, total=False):
     request: str; schema: str; sql: str; rows: list[dict[str, Any]]; summary: str
-    chart_config: dict[str, Any]; error: str; attempts: int; provider: str
+    chart_config: dict[str, Any]; error: str; attempts: int; provider: str; requested_chart_types: list[str]
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+engine = create_engine(settings.readonly_database_url, pool_pre_ping=True)
 
 def schema_context() -> str:
     with engine.connect() as conn:
@@ -59,13 +60,18 @@ def _ask_to_sql(request: str, schema: str) -> tuple[str, str]:
         return _fallback_sql(request), 'deterministic-fallback'
     raise ValueError(f"Unsupported or disabled LLM_PROVIDER: {settings.llm_provider}")
 
+def build_chart(df: pd.DataFrame, requested: str | None = None) -> dict[str, Any]:
+    return choose_chart(df, requested)
+
 def analysis_node(state: AgentState) -> AgentState:
     try:
         sql, provider = _ask_to_sql(state['request'], state['schema'])
         with engine.connect() as conn:
-            df = pd.read_sql(text(sql), conn).head(settings.agent_max_rows)
+            conn.execute(text(f"SET statement_timeout = {int(settings.statement_timeout_ms)}"))
+            df = pd.read_sql(text(sql), conn).head(min(settings.agent_max_rows, settings.max_request_rows))
         rows = json.loads(df.to_json(orient='records', date_format='iso'))
-        chart = {'xAxis': {'type': 'category', 'data': list(df.iloc[:, 0].astype(str)) if len(df.columns) else []}, 'yAxis': {'type': 'value'}, 'series': [{'type': 'bar', 'name': str(df.columns[-1]) if len(df.columns) else 'value', 'data': df.iloc[:, -1].tolist() if len(df.columns) else []}]}
+        requested = next(iter(state.get("requested_chart_types", [])), None)
+        chart = build_chart(df, requested)
         return {**state, 'sql': sql, 'rows': rows, 'chart_config': chart, 'provider': provider, 'attempts': state.get('attempts',0)+1}
     except Exception as exc:
         if state.get('attempts', 0) < 1: return {**state, 'attempts': state.get('attempts',0)+1, 'error': str(exc)}
@@ -87,8 +93,8 @@ def _build_graph():
 
 REA_GRAPH = _build_graph()
 
-def run_agent(request: str, schema: str | None = None) -> dict[str, Any]:
-    state = REA_GRAPH.invoke({'request': request, 'schema': schema or ''})
+def run_agent(request: str, schema: str | None = None, requested_chart_types: list[str] | None = None) -> dict[str, Any]:
+    state = REA_GRAPH.invoke({'request': request, 'schema': schema or '', 'requested_chart_types': requested_chart_types or []})
     if state.get('error') and state.get('attempts', 0) < 2:
         state = output_node(analysis_node(state))
-    return {'summary': state.get('summary',''), 'sql_query': state.get('sql',''), 'data': state.get('rows',[]), 'chart_config': state.get('chart_config',{}), 'provider': state.get('provider'), 'model': settings.openrouter_model if settings.llm_provider == 'openrouter' else (settings.local_model if settings.llm_provider == 'ollama' else settings.qvac_model), 'execution_mode': settings.execution_mode, 'status': 'failed' if state.get('error') else 'completed', 'metadata': {'row_count': len(state.get('rows', []))}, 'warnings': [], 'error': state.get('error')}
+    return {'api_version': 'v1', 'summary': state.get('summary',''), 'sql_query': state.get('sql',''), 'data': state.get('rows',[]), 'chart_config': state.get('chart_config',{}), 'provider': state.get('provider'), 'model': settings.openrouter_model if settings.llm_provider == 'openrouter' else (settings.local_model if settings.llm_provider == 'ollama' else settings.qvac_model), 'execution_mode': settings.execution_mode, 'status': 'failed' if state.get('error') else 'completed', 'metadata': {'row_count': len(state.get('rows', [])), 'truncated': len(state.get('rows', [])) >= settings.agent_max_rows}, 'warnings': ['Result may be truncated.'] if len(state.get('rows', [])) >= settings.agent_max_rows else [], 'error': state.get('error')}
