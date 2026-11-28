@@ -41,7 +41,6 @@ def _ask_to_sql(request: str, schema: str) -> tuple[str, str]:
         except Exception:
             pass
     try:
-    try:
         import httpx
         r = httpx.post(f'{settings.ollama_base_url}/api/generate', json={'model': settings.local_model, 'prompt': f'Return only SQL. Question: {request}\nSchema: {schema}', 'stream': False}, timeout=20)
         r.raise_for_status(); return safe_sql(r.json()['response']), 'ollama'
